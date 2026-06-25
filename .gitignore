@@ -1,0 +1,38 @@
+# Local documentation and workspace notes
+/docs/
+/plan-*.md
+/instrucciones-llm.md
+
+# IDE and local machine state
+.idea/
+*.iml
+.vscode/
+
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Generated mobile artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Secrets and environment files
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+*.pem
+google-services.json
+service-account*.json
+
+# OS noise
+.DS_Store
+Thumbs.db
