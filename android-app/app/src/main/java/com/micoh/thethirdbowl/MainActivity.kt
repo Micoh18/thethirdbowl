@@ -36,8 +36,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.micoh.thethirdbowl.data.CapsuleRepository
 import com.micoh.thethirdbowl.data.CatRepository
 import com.micoh.thethirdbowl.data.CatRow
+import com.micoh.thethirdbowl.data.CareCoreDraft
 import com.micoh.thethirdbowl.data.SupabaseProvider
 import com.micoh.thethirdbowl.ui.theme.TheThirdBowlTheme
 import io.github.jan.supabase.auth.auth
@@ -81,7 +83,10 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
     var isBusy by remember { mutableStateOf(false) }
     var catName by remember { mutableStateOf("") }
     var cats by remember { mutableStateOf(emptyList<CatRow>()) }
+    var selectedCatId by remember { mutableStateOf<String?>(null) }
+    var careCore by remember { mutableStateOf(CareCoreDraft()) }
     val catRepository = remember { CatRepository() }
+    val capsuleRepository = remember { CapsuleRepository() }
 
     LaunchedEffect(Unit) {
         runCatching {
@@ -95,6 +100,10 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
             }
             if (session != null) {
                 cats = catRepository.listMyCats()
+                selectedCatId = cats.firstOrNull()?.id
+                selectedCatId?.let { catId ->
+                    careCore = capsuleRepository.loadCareCore(catId)
+                }
             }
         }.onFailure { error ->
             status = error.readableMessage()
@@ -152,6 +161,10 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                             }.onSuccess { session ->
                                 signedInEmail = session?.user?.email
                                 cats = catRepository.listMyCats()
+                                selectedCatId = cats.firstOrNull()?.id
+                                selectedCatId?.let { catId ->
+                                    careCore = capsuleRepository.loadCareCore(catId)
+                                }
                                 status = "Signed in with Supabase."
                             }.onFailure { error ->
                                 status = error.readableMessage()
@@ -202,6 +215,8 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                         }.onSuccess {
                             signedInEmail = null
                             cats = emptyList()
+                            selectedCatId = null
+                            careCore = CareCoreDraft()
                             status = "Signed out."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -225,10 +240,33 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     cats.forEach { cat ->
-                        Text(
-                            text = "${cat.name} (${cat.status})",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        OutlinedButton(
+                            enabled = !isBusy,
+                            onClick = {
+                                scope.launch {
+                                    isBusy = true
+                                    status = "Loading ${cat.name}..."
+                                    runCatching {
+                                        capsuleRepository.loadCareCore(cat.id)
+                                    }.onSuccess { draft ->
+                                        selectedCatId = cat.id
+                                        careCore = draft
+                                        status = "Loaded ${cat.name}."
+                                    }.onFailure { error ->
+                                        status = error.readableMessage()
+                                    }
+                                    isBusy = false
+                                }
+                            }
+                        ) {
+                            Text(
+                                text = if (selectedCatId == cat.id) {
+                                    "${cat.name} selected"
+                                } else {
+                                    "${cat.name} (${cat.status})"
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -250,6 +288,8 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                         }.onSuccess { cat ->
                             catName = ""
                             cats = cats + cat
+                            selectedCatId = cat.id
+                            careCore = CareCoreDraft()
                             status = "Created ${cat.name} in Supabase."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -259,6 +299,54 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                 }
             ) {
                 Text("Add cat")
+            }
+            selectedCatId?.let { catId ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Care core",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                OutlinedTextField(
+                    value = careCore.feedingAndWater,
+                    onValueChange = { careCore = careCore.copy(feedingAndWater = it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Feeding and water") },
+                    minLines = 3
+                )
+                OutlinedTextField(
+                    value = careCore.hidingPlaces,
+                    onValueChange = { careCore = careCore.copy(hidingPlaces = it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Hiding places") },
+                    minLines = 2
+                )
+                OutlinedTextField(
+                    value = careCore.doNotDo,
+                    onValueChange = { careCore = careCore.copy(doNotDo = it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Do not do") },
+                    minLines = 2
+                )
+                Button(
+                    enabled = !isBusy,
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            status = "Saving care core..."
+                            runCatching {
+                                capsuleRepository.saveCareCore(catId, careCore)
+                            }.onSuccess { savedDraft ->
+                                careCore = savedDraft
+                                status = "Care core saved in Supabase."
+                            }.onFailure { error ->
+                                status = error.readableMessage()
+                            }
+                            isBusy = false
+                        }
+                    }
+                ) {
+                    Text("Save care core")
+                }
             }
         }
 
