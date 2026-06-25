@@ -36,6 +36,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.micoh.thethirdbowl.data.CatRepository
+import com.micoh.thethirdbowl.data.CatRow
 import com.micoh.thethirdbowl.data.SupabaseProvider
 import com.micoh.thethirdbowl.ui.theme.TheThirdBowlTheme
 import io.github.jan.supabase.auth.auth
@@ -77,6 +79,9 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
     var signedInEmail by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("Checking session...") }
     var isBusy by remember { mutableStateOf(false) }
+    var catName by remember { mutableStateOf("") }
+    var cats by remember { mutableStateOf(emptyList<CatRow>()) }
+    val catRepository = remember { CatRepository() }
 
     LaunchedEffect(Unit) {
         runCatching {
@@ -87,6 +92,9 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                 "Sign in or create an account to start a real care plan."
             } else {
                 "Signed in with Supabase."
+            }
+            if (session != null) {
+                cats = catRepository.listMyCats()
             }
         }.onFailure { error ->
             status = error.readableMessage()
@@ -143,6 +151,7 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                                 SupabaseProvider.client.auth.currentSessionOrNull()
                             }.onSuccess { session ->
                                 signedInEmail = session?.user?.email
+                                cats = catRepository.listMyCats()
                                 status = "Signed in with Supabase."
                             }.onFailure { error ->
                                 status = error.readableMessage()
@@ -192,6 +201,7 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                             SupabaseProvider.client.auth.signOut()
                         }.onSuccess {
                             signedInEmail = null
+                            cats = emptyList()
                             status = "Signed out."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -201,6 +211,54 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                 }
             ) {
                 Text("Sign out")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Cats",
+                style = MaterialTheme.typography.titleLarge
+            )
+            if (cats.isEmpty()) {
+                Text(
+                    text = "No cats yet.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cats.forEach { cat ->
+                        Text(
+                            text = "${cat.name} (${cat.status})",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = catName,
+                onValueChange = { catName = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Cat name") },
+                singleLine = true
+            )
+            Button(
+                enabled = !isBusy && catName.isNotBlank(),
+                onClick = {
+                    scope.launch {
+                        isBusy = true
+                        status = "Creating cat..."
+                        runCatching {
+                            catRepository.createCat(catName)
+                        }.onSuccess { cat ->
+                            catName = ""
+                            cats = cats + cat
+                            status = "Created ${cat.name} in Supabase."
+                        }.onFailure { error ->
+                            status = error.readableMessage()
+                        }
+                        isBusy = false
+                    }
+                }
+            ) {
+                Text("Add cat")
             }
         }
 
