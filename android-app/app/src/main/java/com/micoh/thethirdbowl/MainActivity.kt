@@ -4,14 +4,43 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.micoh.thethirdbowl.data.SupabaseProvider
 import com.micoh.thethirdbowl.ui.theme.TheThirdBowlTheme
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,11 +48,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             TheThirdBowlTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    ThirdBowlApp()
                 }
             }
         }
@@ -31,17 +57,181 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
+private fun ThirdBowlApp() {
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        AuthScreen(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
+        )
+    }
+}
+
+@Composable
+private fun AuthScreen(modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var signedInEmail by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf("Checking session...") }
+    var isBusy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            SupabaseProvider.client.auth.currentSessionOrNull()
+        }.onSuccess { session ->
+            signedInEmail = session?.user?.email
+            status = if (session == null) {
+                "Sign in or create an account to start a real care plan."
+            } else {
+                "Signed in with Supabase."
+            }
+        }.onFailure { error ->
+            status = error.readableMessage()
+        }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "The Third Bowl",
+            style = MaterialTheme.typography.headlineMedium
+        )
+        Text(
+            text = "Emergency continuity for cats whose care depends on one person.",
+            style = MaterialTheme.typography.bodyLarge
+        )
+
+        if (signedInEmail == null) {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it.trim() },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Email") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    enabled = !isBusy && email.isNotBlank() && password.length >= 6,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            status = "Signing in..."
+                            runCatching {
+                                SupabaseProvider.client.auth.signInWith(Email) {
+                                    this.email = email
+                                    this.password = password
+                                }
+                                SupabaseProvider.client.auth.currentSessionOrNull()
+                            }.onSuccess { session ->
+                                signedInEmail = session?.user?.email
+                                status = "Signed in with Supabase."
+                            }.onFailure { error ->
+                                status = error.readableMessage()
+                            }
+                            isBusy = false
+                        }
+                    }
+                ) {
+                    Text("Sign in")
+                }
+                OutlinedButton(
+                    enabled = !isBusy && email.isNotBlank() && password.length >= 6,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            status = "Creating account..."
+                            runCatching {
+                                SupabaseProvider.client.auth.signUpWith(Email) {
+                                    this.email = email
+                                    this.password = password
+                                }
+                            }.onSuccess {
+                                status = "Account created. Check the verification email before signing in."
+                            }.onFailure { error ->
+                                status = error.readableMessage()
+                            }
+                            isBusy = false
+                        }
+                    }
+                ) {
+                    Text("Sign up")
+                }
+            }
+        } else {
+            Text(
+                text = signedInEmail.orEmpty(),
+                style = MaterialTheme.typography.titleMedium
+            )
+            OutlinedButton(
+                enabled = !isBusy,
+                onClick = {
+                    scope.launch {
+                        isBusy = true
+                        status = "Signing out..."
+                        runCatching {
+                            SupabaseProvider.client.auth.signOut()
+                        }.onSuccess {
+                            signedInEmail = null
+                            status = "Signed out."
+                        }.onFailure { error ->
+                            status = error.readableMessage()
+                        }
+                        isBusy = false
+                    }
+                }
+            ) {
+                Text("Sign out")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (isBusy) {
+                CircularProgressIndicator()
+            }
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+private fun Throwable.readableMessage(): String {
+    return message?.takeIf { it.isNotBlank() } ?: "The request failed."
 }
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+private fun AuthScreenPreview() {
     TheThirdBowlTheme {
-        Greeting("Android")
+        AuthScreen(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+        )
     }
 }
