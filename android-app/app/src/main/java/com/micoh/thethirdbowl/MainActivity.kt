@@ -135,6 +135,7 @@ private fun ThirdBowlApp(
     var signedInEmail by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<UiStatus>(UiStatus.Info("Checking your session...")) }
     var isBusy by remember { mutableStateOf(false) }
+    var isLoadingCats by remember { mutableStateOf(false) }
     var catName by remember { mutableStateOf("") }
     var cats by remember { mutableStateOf(emptyList<CatRow>()) }
     var selectedCatId by remember { mutableStateOf<String?>(null) }
@@ -178,6 +179,8 @@ private fun ThirdBowlApp(
             if (session == null) {
                 status = UiStatus.Info("Create an account or sign in to build a continuity plan.")
             } else {
+                isLoadingCats = true
+                status = UiStatus.Info("Loading cats...")
                 runCatching {
                     loadAccountState()
                 }.onSuccess {
@@ -185,6 +188,7 @@ private fun ThirdBowlApp(
                 }.onFailure { error ->
                     status = UiStatus.Error(error.readableMessage())
                 }
+                isLoadingCats = false
             }
         }.onFailure { error ->
             status = UiStatus.Error(error.readableMessage())
@@ -197,6 +201,8 @@ private fun ThirdBowlApp(
         status = UiStatus.Success(authCallbackStatus)
         if (authCallbackEmail != null) {
             signedInEmail = authCallbackEmail
+            isLoadingCats = true
+            status = UiStatus.Info("Loading cats...")
             runCatching {
                 loadAccountState()
             }.onSuccess {
@@ -204,6 +210,7 @@ private fun ThirdBowlApp(
             }.onFailure { error ->
                 status = UiStatus.Error(error.readableMessage())
             }
+            isLoadingCats = false
         }
     }
 
@@ -227,11 +234,15 @@ private fun ThirdBowlApp(
                         SupabaseProvider.client.auth.currentSessionOrNull()
                     }.onSuccess { session ->
                         signedInEmail = session?.user?.email
+                        isLoadingCats = true
+                        status = UiStatus.Info("Loading cats...")
                         loadAccountState()
+                        isLoadingCats = false
                         selectedTab = AppTab.Home
                         status = UiStatus.Success("Welcome back. Your plans are synced.")
                     }.onFailure { error ->
                         status = UiStatus.Error(error.readableMessage())
+                        isLoadingCats = false
                     }
                     isBusy = false
                 }
@@ -257,6 +268,11 @@ private fun ThirdBowlApp(
                 }
             },
         )
+        return
+    }
+
+    if (isLoadingCats) {
+        LoadingCatsExperience(status = status)
         return
     }
 
@@ -531,6 +547,31 @@ private fun ThirdBowlApp(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun LoadingCatsExperience(status: UiStatus) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        BrandMark()
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Loading cats...",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "Syncing profiles, Capsule sections, Care Circle and continuity state.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        StatusBanner(status = status, isBusy = true)
     }
 }
 
