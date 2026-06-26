@@ -24,6 +24,10 @@ captures/
 *.ap_
 *.dex
 
+# Web dependencies and build output
+node_modules/
+dist/
+
 # Secrets and environment files
 .env
 .env.*
