@@ -20,7 +20,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -45,14 +46,23 @@ button:disabled {
   opacity: 0.55;
 }
 
-input {
+input,
+textarea {
   width: 100%;
-  min-height: 46px;
   border: 1px solid #8f6848;
   border-radius: 8px;
   padding: 10px 12px;
   color: #f5ecdf;
   background: #21150d;
+}
+
+input {
+  min-height: 46px;
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
 }
 
 label {
@@ -144,6 +154,13 @@ h2 {
 }
 
 .care-core {
+  border-top: 1px solid #3a281c;
+  padding-top: 12px;
+}
+
+.resolution {
+  display: grid;
+  gap: 10px;
   border-top: 1px solid #3a281c;
   padding-top: 12px;
 }

@@ -21,6 +21,7 @@ let state = {
   invitations: [],
   assignments: [],
   careCoreByIncident: {},
+  resolutionNotes: {},
   status: 'Checking session...',
   busy: false,
 }
@@ -44,6 +45,7 @@ async function initialize() {
       state.invitations = []
       state.assignments = []
       state.careCoreByIncident = {}
+      state.resolutionNotes = {}
       state.status = 'Signed out.'
       render()
     }
@@ -147,6 +149,7 @@ function renderAssignment(assignment) {
   const careCore = state.careCoreByIncident[assignment.incident_id]
   const accepted = assignment.assignment_state === 'accepted'
   const acceptDisabled = state.busy || accepted
+  const resolutionNote = state.resolutionNotes[assignment.assignment_id] ?? 'Responder confirmed care coverage.'
 
   return `
     <article class="invite">
@@ -158,9 +161,23 @@ function renderAssignment(assignment) {
       <button data-accept-assignment="${escapeAttribute(assignment.assignment_id)}" ${acceptDisabled ? 'disabled' : ''}>
         ${accepted ? 'Accepted' : 'Accept incident'}
       </button>
-      ${accepted ? `<button class="secondary" data-resolve-assignment="${escapeAttribute(assignment.assignment_id)}" ${state.busy ? 'disabled' : ''}>Resolve incident</button>` : ''}
+      ${accepted ? renderResolutionControls(assignment.assignment_id, resolutionNote) : ''}
       ${careCore ? renderCareCore(careCore) : ''}
     </article>
+  `
+}
+
+function renderResolutionControls(assignmentId, resolutionNote) {
+  return `
+    <div class="resolution">
+      <label>
+        Resolution note
+        <textarea data-resolution-note="${escapeAttribute(assignmentId)}" rows="3">${escapeHtml(resolutionNote)}</textarea>
+      </label>
+      <button class="secondary" data-resolve-assignment="${escapeAttribute(assignmentId)}" ${state.busy ? 'disabled' : ''}>
+        Resolve incident
+      </button>
+    </div>
   `
 }
 
@@ -212,6 +229,15 @@ function bindEvents() {
       resolveIncidentAssignment(button.dataset.resolveAssignment)
     })
   })
+
+  document.querySelectorAll('[data-resolution-note]').forEach((textarea) => {
+    textarea.addEventListener('input', () => {
+      state.resolutionNotes = {
+        ...state.resolutionNotes,
+        [textarea.dataset.resolutionNote]: textarea.value,
+      }
+    })
+  })
 }
 
 async function signIn() {
@@ -252,6 +278,7 @@ async function signOut() {
     state.invitations = []
     state.assignments = []
     state.careCoreByIncident = {}
+    state.resolutionNotes = {}
   })
 }
 
@@ -311,8 +338,7 @@ async function acceptIncidentAssignment(assignmentId) {
 }
 
 async function resolveIncidentAssignment(assignmentId) {
-  const resolutionNote = window.prompt('Resolution note (optional)', 'Responder confirmed care coverage.')
-  if (resolutionNote === null) return
+  const resolutionNote = state.resolutionNotes[assignmentId] ?? ''
 
   await withBusy('Resolving incident...', async () => {
     const { error } = await supabase.rpc('resolve_incident_assignment', {
@@ -323,9 +349,15 @@ async function resolveIncidentAssignment(assignmentId) {
     if (error) throw error
 
     await loadAssignmentsOnly()
+    const remainingAssignmentIds = new Set(state.assignments.map((assignment) => assignment.assignment_id))
     state.careCoreByIncident = Object.fromEntries(
       Object.entries(state.careCoreByIncident).filter(([incidentId]) =>
         state.assignments.some((assignment) => assignment.incident_id === incidentId),
+      ),
+    )
+    state.resolutionNotes = Object.fromEntries(
+      Object.entries(state.resolutionNotes).filter(([noteAssignmentId]) =>
+        remainingAssignmentIds.has(noteAssignmentId),
       ),
     )
     state.status = 'Incident resolved. Active data grant revoked.'
