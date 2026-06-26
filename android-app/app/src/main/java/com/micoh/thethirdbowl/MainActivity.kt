@@ -137,6 +137,12 @@ private fun AuthScreen(
     val invitationRepository = remember { InvitationRepository() }
     val planRepository = remember { PlanRepository() }
 
+    suspend fun loadSelectedCatState(catId: String) {
+        careCore = capsuleRepository.loadCareCore(catId)
+        invitations = invitationRepository.listInvitations(catId)
+        plan = planRepository.getOrCreatePlan(catId)
+    }
+
     LaunchedEffect(Unit) {
         runCatching {
             SupabaseProvider.client.auth.currentSessionOrNull()
@@ -151,9 +157,7 @@ private fun AuthScreen(
                 cats = catRepository.listMyCats()
                 selectedCatId = cats.firstOrNull()?.id
                 selectedCatId?.let { catId ->
-                    careCore = capsuleRepository.loadCareCore(catId)
-                    invitations = invitationRepository.listInvitations(catId)
-                    plan = planRepository.getOrCreatePlan(catId)
+                    loadSelectedCatState(catId)
                 }
             }
         }.onFailure { error ->
@@ -173,9 +177,11 @@ private fun AuthScreen(
                 cats = loadedCats
                 selectedCatId = loadedCats.firstOrNull()?.id
                 selectedCatId?.let { catId ->
-                    careCore = capsuleRepository.loadCareCore(catId)
-                    invitations = invitationRepository.listInvitations(catId)
-                    plan = planRepository.getOrCreatePlan(catId)
+                    runCatching {
+                        loadSelectedCatState(catId)
+                    }.onFailure { error ->
+                        status = error.readableMessage()
+                    }
                 }
             }.onFailure { error ->
                 status = error.readableMessage()
@@ -236,9 +242,7 @@ private fun AuthScreen(
                                 cats = catRepository.listMyCats()
                                 selectedCatId = cats.firstOrNull()?.id
                                 selectedCatId?.let { catId ->
-                                    careCore = capsuleRepository.loadCareCore(catId)
-                                    invitations = invitationRepository.listInvitations(catId)
-                                    plan = planRepository.getOrCreatePlan(catId)
+                                    loadSelectedCatState(catId)
                                 }
                                 status = "Signed in."
                             }.onFailure { error ->
@@ -329,12 +333,9 @@ private fun AuthScreen(
                                     isBusy = true
                                     status = "Loading ${cat.name}..."
                                     runCatching {
-                                        capsuleRepository.loadCareCore(cat.id)
-                                    }.onSuccess { draft ->
+                                        loadSelectedCatState(cat.id)
+                                    }.onSuccess {
                                         selectedCatId = cat.id
-                                        careCore = draft
-                                        invitations = invitationRepository.listInvitations(cat.id)
-                                        plan = planRepository.getOrCreatePlan(cat.id)
                                         status = "Loaded ${cat.name}."
                                     }.onFailure { error ->
                                         status = error.readableMessage()
@@ -375,7 +376,9 @@ private fun AuthScreen(
                             selectedCatId = cat.id
                             careCore = CareCoreDraft()
                             invitations = emptyList()
-                            plan = planRepository.getOrCreatePlan(cat.id)
+                            plan = runCatching {
+                                planRepository.getOrCreatePlan(cat.id)
+                            }.getOrNull()
                             status = "Created ${cat.name}."
                         }.onFailure { error ->
                             status = error.readableMessage()
