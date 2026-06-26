@@ -2,6 +2,11 @@ package com.micoh.thethirdbowl
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -52,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -571,7 +577,94 @@ private fun LoadingCatsExperience(status: UiStatus) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        StatusBanner(status = status, isBusy = true)
+        CatLoadingIndicator()
+        StatusBanner(status = status, isBusy = false)
+    }
+}
+
+@Composable
+private fun CatLoadingIndicator() {
+    val transition = rememberInfiniteTransition(label = "cat-loading")
+    val bowlScale by transition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "bowl-scale",
+    )
+    val sweep by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "loading-sweep",
+    )
+    val dots = listOf("Capsule", "Circle", "Plan")
+
+    SectionCard(title = "Syncing workspace") {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .align(Alignment.CenterHorizontally)
+                .scale(bowlScale)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "B",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            dots.forEachIndexed { index, label ->
+                val active = ((sweep * dots.size).toInt() % dots.size) == index
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (active) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                        ),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            dots.forEachIndexed { index, label ->
+                val active = ((sweep * dots.size).toInt() % dots.size) == index
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (active) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
