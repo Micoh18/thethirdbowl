@@ -146,7 +146,7 @@ function renderInvitation(invitation) {
 function renderAssignment(assignment) {
   const careCore = state.careCoreByIncident[assignment.incident_id]
   const accepted = assignment.assignment_state === 'accepted'
-  const disabled = state.busy || accepted
+  const acceptDisabled = state.busy || accepted
 
   return `
     <article class="invite">
@@ -155,9 +155,10 @@ function renderAssignment(assignment) {
         <p>${escapeHtml(assignment.relationship_label)} | incident ${escapeHtml(assignment.incident_state)} | response ${escapeHtml(assignment.assignment_state)}</p>
         <p>Deadline: ${escapeHtml(formatDateTime(assignment.response_deadline_at))}</p>
       </div>
-      <button data-accept-assignment="${escapeAttribute(assignment.assignment_id)}" ${disabled ? 'disabled' : ''}>
+      <button data-accept-assignment="${escapeAttribute(assignment.assignment_id)}" ${acceptDisabled ? 'disabled' : ''}>
         ${accepted ? 'Accepted' : 'Accept incident'}
       </button>
+      ${accepted ? `<button class="secondary" data-resolve-assignment="${escapeAttribute(assignment.assignment_id)}" ${state.busy ? 'disabled' : ''}>Resolve incident</button>` : ''}
       ${careCore ? renderCareCore(careCore) : ''}
     </article>
   `
@@ -203,6 +204,12 @@ function bindEvents() {
   document.querySelectorAll('[data-accept-assignment]').forEach((button) => {
     button.addEventListener('click', () => {
       acceptIncidentAssignment(button.dataset.acceptAssignment)
+    })
+  })
+
+  document.querySelectorAll('[data-resolve-assignment]').forEach((button) => {
+    button.addEventListener('click', () => {
+      resolveIncidentAssignment(button.dataset.resolveAssignment)
     })
   })
 }
@@ -260,9 +267,9 @@ async function loadPortalData() {
 }
 
 async function loadInvitationsOnly() {
-    const { data, error } = await supabase.rpc('list_my_invitation_records')
-    if (error) throw error
-    state.invitations = data ?? []
+  const { data, error } = await supabase.rpc('list_my_invitation_records')
+  if (error) throw error
+  state.invitations = data ?? []
 }
 
 async function loadAssignmentsOnly() {
@@ -300,6 +307,28 @@ async function acceptIncidentAssignment(assignmentId) {
 
     await loadAssignmentsOnly()
     state.status = 'Incident accepted. CARE_CORE grant loaded.'
+  })
+}
+
+async function resolveIncidentAssignment(assignmentId) {
+  const resolutionNote = window.prompt('Resolution note (optional)', 'Responder confirmed care coverage.')
+  if (resolutionNote === null) return
+
+  await withBusy('Resolving incident...', async () => {
+    const { error } = await supabase.rpc('resolve_incident_assignment', {
+      p_assignment_id: assignmentId,
+      p_resolution_note: resolutionNote,
+    })
+
+    if (error) throw error
+
+    await loadAssignmentsOnly()
+    state.careCoreByIncident = Object.fromEntries(
+      Object.entries(state.careCoreByIncident).filter(([incidentId]) =>
+        state.assignments.some((assignment) => assignment.incident_id === incidentId),
+      ),
+    )
+    state.status = 'Incident resolved. Active data grant revoked.'
   })
 }
 
