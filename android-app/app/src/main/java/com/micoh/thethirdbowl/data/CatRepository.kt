@@ -1,6 +1,9 @@
 package com.micoh.thethirdbowl.data
 
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -16,11 +19,12 @@ class CatRepository {
 
     suspend fun createCat(name: String): CatRow {
         return client
-            .from("cats")
-            .insert(
-                CreateCatRequest(
-                    name = name.trim(),
-                )
+            .postgrest
+            .rpc(
+                function = "create_cat",
+                parameters = buildJsonObject {
+                    put("cat_name", name.trim())
+                },
             ) {
                 select()
             }
@@ -35,9 +39,4 @@ data class CatRow(
     val status: String,
     @SerialName("primary_caregiver_user_id")
     val primaryCaregiverUserId: String,
-)
-
-@Serializable
-private data class CreateCatRequest(
-    val name: String,
 )
