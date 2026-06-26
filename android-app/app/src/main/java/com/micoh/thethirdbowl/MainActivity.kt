@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
             intent,
             { session ->
                 authCallbackEmail = session.user?.email
-                authCallbackStatus = "Email verified. Signed in with Supabase."
+                authCallbackStatus = "Email verified. Signed in."
             },
             { error ->
                 authCallbackStatus = error.readableMessage()
@@ -145,7 +145,7 @@ private fun AuthScreen(
             status = if (session == null) {
                 "Sign in or create an account to start a real care plan."
             } else {
-                "Signed in with Supabase."
+                "Signed in."
             }
             if (session != null) {
                 cats = catRepository.listMyCats()
@@ -240,7 +240,7 @@ private fun AuthScreen(
                                     invitations = invitationRepository.listInvitations(catId)
                                     plan = planRepository.getOrCreatePlan(catId)
                                 }
-                                status = "Signed in with Supabase."
+                                status = "Signed in."
                             }.onFailure { error ->
                                 status = error.readableMessage()
                             }
@@ -376,7 +376,7 @@ private fun AuthScreen(
                             careCore = CareCoreDraft()
                             invitations = emptyList()
                             plan = planRepository.getOrCreatePlan(cat.id)
-                            status = "Created ${cat.name} in Supabase."
+                            status = "Created ${cat.name}."
                         }.onFailure { error ->
                             status = error.readableMessage()
                         }
@@ -423,7 +423,7 @@ private fun AuthScreen(
                                 capsuleRepository.saveCareCore(catId, careCore)
                             }.onSuccess { savedDraft ->
                                 careCore = savedDraft
-                                status = "Care core saved in Supabase."
+                                status = "Care core saved."
                             }.onFailure { error ->
                                 status = error.readableMessage()
                             }
