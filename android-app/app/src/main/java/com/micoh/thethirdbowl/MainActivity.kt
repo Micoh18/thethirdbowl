@@ -41,6 +41,8 @@ import com.micoh.thethirdbowl.data.CapsuleRepository
 import com.micoh.thethirdbowl.data.CatRepository
 import com.micoh.thethirdbowl.data.CatRow
 import com.micoh.thethirdbowl.data.CareCoreDraft
+import com.micoh.thethirdbowl.data.InvitationRepository
+import com.micoh.thethirdbowl.data.InvitationRow
 import com.micoh.thethirdbowl.data.SupabaseProvider
 import com.micoh.thethirdbowl.ui.theme.TheThirdBowlTheme
 import io.github.jan.supabase.auth.handleDeeplinks
@@ -124,8 +126,12 @@ private fun AuthScreen(
     var cats by remember { mutableStateOf(emptyList<CatRow>()) }
     var selectedCatId by remember { mutableStateOf<String?>(null) }
     var careCore by remember { mutableStateOf(CareCoreDraft()) }
+    var invitationEmail by remember { mutableStateOf("") }
+    var relationshipLabel by remember { mutableStateOf("") }
+    var invitations by remember { mutableStateOf(emptyList<InvitationRow>()) }
     val catRepository = remember { CatRepository() }
     val capsuleRepository = remember { CapsuleRepository() }
+    val invitationRepository = remember { InvitationRepository() }
 
     LaunchedEffect(Unit) {
         runCatching {
@@ -142,6 +148,7 @@ private fun AuthScreen(
                 selectedCatId = cats.firstOrNull()?.id
                 selectedCatId?.let { catId ->
                     careCore = capsuleRepository.loadCareCore(catId)
+                    invitations = invitationRepository.listInvitations(catId)
                 }
             }
         }.onFailure { error ->
@@ -162,6 +169,7 @@ private fun AuthScreen(
                 selectedCatId = loadedCats.firstOrNull()?.id
                 selectedCatId?.let { catId ->
                     careCore = capsuleRepository.loadCareCore(catId)
+                    invitations = invitationRepository.listInvitations(catId)
                 }
             }.onFailure { error ->
                 status = error.readableMessage()
@@ -223,6 +231,7 @@ private fun AuthScreen(
                                 selectedCatId = cats.firstOrNull()?.id
                                 selectedCatId?.let { catId ->
                                     careCore = capsuleRepository.loadCareCore(catId)
+                                    invitations = invitationRepository.listInvitations(catId)
                                 }
                                 status = "Signed in with Supabase."
                             }.onFailure { error ->
@@ -279,6 +288,9 @@ private fun AuthScreen(
                             cats = emptyList()
                             selectedCatId = null
                             careCore = CareCoreDraft()
+                            invitationEmail = ""
+                            relationshipLabel = ""
+                            invitations = emptyList()
                             status = "Signed out."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -313,6 +325,7 @@ private fun AuthScreen(
                                     }.onSuccess { draft ->
                                         selectedCatId = cat.id
                                         careCore = draft
+                                        invitations = invitationRepository.listInvitations(cat.id)
                                         status = "Loaded ${cat.name}."
                                     }.onFailure { error ->
                                         status = error.readableMessage()
@@ -352,6 +365,7 @@ private fun AuthScreen(
                             cats = cats + cat
                             selectedCatId = cat.id
                             careCore = CareCoreDraft()
+                            invitations = emptyList()
                             status = "Created ${cat.name} in Supabase."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -408,6 +422,67 @@ private fun AuthScreen(
                     }
                 ) {
                     Text("Save care core")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Care Circle",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                if (invitations.isEmpty()) {
+                    Text(
+                        text = "No invitation records yet.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        invitations.forEach { invitation ->
+                            Text(
+                                text = "${invitation.relationshipLabel}: ${invitation.status}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = invitationEmail,
+                    onValueChange = { invitationEmail = it.trim() },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Invited email") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+                OutlinedTextField(
+                    value = relationshipLabel,
+                    onValueChange = { relationshipLabel = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Relationship label") },
+                    singleLine = true
+                )
+                Button(
+                    enabled = !isBusy && invitationEmail.isNotBlank() && relationshipLabel.isNotBlank(),
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            status = "Creating invitation record..."
+                            runCatching {
+                                invitationRepository.createInvitation(
+                                    catId = catId,
+                                    email = invitationEmail,
+                                    relationshipLabel = relationshipLabel,
+                                )
+                            }.onSuccess { invitation ->
+                                invitationEmail = ""
+                                relationshipLabel = ""
+                                invitations = listOf(invitation) + invitations
+                                status = "Invitation record created. Email delivery is not connected yet."
+                            }.onFailure { error ->
+                                status = error.readableMessage()
+                            }
+                            isBusy = false
+                        }
+                    }
+                ) {
+                    Text("Create invitation record")
                 }
             }
         }
