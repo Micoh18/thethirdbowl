@@ -28,7 +28,7 @@ class CatRepository {
             ) {
                 select()
             }
-            .decodeSingle<CatRow>()
+            .decodeAs<CatRow>()
     }
 }
 
