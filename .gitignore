@@ -2,7 +2,7 @@
 /docs/
 /plan-*.md
 /instrucciones-llm.md
-/supabase/
+/supabase/.temp/
 
 # IDE and local machine state
 .idea/

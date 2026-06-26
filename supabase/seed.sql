@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- Test records must be created through the real application flow.
