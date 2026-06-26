@@ -107,7 +107,6 @@ h2 {
 .actions,
 .identity,
 .section-title,
-.invite,
 .status {
   display: flex;
   gap: 12px;
@@ -119,8 +118,7 @@ h2 {
 }
 
 .identity,
-.section-title,
-.invite {
+.section-title {
   justify-content: space-between;
 }
 
@@ -130,6 +128,8 @@ h2 {
 }
 
 .invite {
+  display: grid;
+  gap: 12px;
   border: 1px solid #3a281c;
   border-radius: 8px;
   padding: 14px;
@@ -137,9 +137,37 @@ h2 {
 }
 
 .invite p,
-.empty {
+.empty,
+.note {
   margin: 6px 0 0;
   color: #d7b998;
+}
+
+.care-core {
+  border-top: 1px solid #3a281c;
+  padding-top: 12px;
+}
+
+.care-core h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.care-core dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.care-core dt {
+  color: #ffbd6b;
+  font-weight: 700;
+}
+
+.care-core dd {
+  margin: 0 0 8px;
+  color: #f5ecdf;
+  white-space: pre-wrap;
 }
 
 .status {

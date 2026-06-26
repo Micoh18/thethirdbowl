@@ -19,6 +19,8 @@ let state = {
   password: '',
   session: null,
   invitations: [],
+  assignments: [],
+  careCoreByIncident: {},
   status: 'Checking session...',
   busy: false,
 }
@@ -37,16 +39,18 @@ async function initialize() {
   supabase.auth.onAuthStateChange((_event, session) => {
     state.session = session
     if (session) {
-      loadInvitations()
+      loadPortalData()
     } else {
       state.invitations = []
+      state.assignments = []
+      state.careCoreByIncident = {}
       state.status = 'Signed out.'
       render()
     }
   })
 
   if (state.session) {
-    await loadInvitations()
+    await loadPortalData()
   }
 
   render()
@@ -97,6 +101,9 @@ function renderSignedIn() {
   const invitations = state.invitations.length
     ? state.invitations.map(renderInvitation).join('')
     : '<p class="empty">No pending invitations for this email.</p>'
+  const assignments = state.assignments.length
+    ? state.assignments.map(renderAssignment).join('')
+    : '<p class="empty">No active incident assignments for this email.</p>'
 
   return `
     <section class="panel">
@@ -113,6 +120,14 @@ function renderSignedIn() {
       </div>
       <div class="list">${invitations}</div>
     </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <h2>Incident Assignments</h2>
+      </div>
+      <p class="note">Assignments appear after the caregiver activates a missed check-in. Email delivery is not connected yet.</p>
+      <div class="list">${assignments}</div>
+    </section>
   `
 }
 
@@ -121,10 +136,47 @@ function renderInvitation(invitation) {
     <article class="invite">
       <div>
         <strong>${escapeHtml(invitation.cat_name)}</strong>
-        <p>${escapeHtml(invitation.relationship_label)} · ${escapeHtml(invitation.status)}</p>
+        <p>${escapeHtml(invitation.relationship_label)} | ${escapeHtml(invitation.status)}</p>
       </div>
       <button data-accept="${escapeAttribute(invitation.id)}" ${state.busy ? 'disabled' : ''}>Accept</button>
     </article>
+  `
+}
+
+function renderAssignment(assignment) {
+  const careCore = state.careCoreByIncident[assignment.incident_id]
+  const accepted = assignment.assignment_state === 'accepted'
+  const disabled = state.busy || accepted
+
+  return `
+    <article class="invite">
+      <div>
+        <strong>${escapeHtml(assignment.cat_name)}</strong>
+        <p>${escapeHtml(assignment.relationship_label)} | incident ${escapeHtml(assignment.incident_state)} | response ${escapeHtml(assignment.assignment_state)}</p>
+        <p>Deadline: ${escapeHtml(formatDateTime(assignment.response_deadline_at))}</p>
+      </div>
+      <button data-accept-assignment="${escapeAttribute(assignment.assignment_id)}" ${disabled ? 'disabled' : ''}>
+        ${accepted ? 'Accepted' : 'Accept incident'}
+      </button>
+      ${careCore ? renderCareCore(careCore) : ''}
+    </article>
+  `
+}
+
+function renderCareCore(careCore) {
+  const content = careCore.content_json ?? {}
+  return `
+    <div class="care-core">
+      <h3>Care Core</h3>
+      <dl>
+        <dt>Feeding and water</dt>
+        <dd>${escapeHtml(content.feeding_and_water || 'Not set')}</dd>
+        <dt>Hiding places</dt>
+        <dd>${escapeHtml(content.hiding_places || 'Not set')}</dd>
+        <dt>Do not do</dt>
+        <dd>${escapeHtml(content.do_not_do || 'Not set')}</dd>
+      </dl>
+    </div>
   `
 }
 
@@ -140,11 +192,17 @@ function bindEvents() {
   document.querySelector('#sign-in')?.addEventListener('click', signIn)
   document.querySelector('#sign-up')?.addEventListener('click', signUp)
   document.querySelector('#sign-out')?.addEventListener('click', signOut)
-  document.querySelector('#refresh')?.addEventListener('click', loadInvitations)
+  document.querySelector('#refresh')?.addEventListener('click', loadPortalData)
 
   document.querySelectorAll('[data-accept]').forEach((button) => {
     button.addEventListener('click', () => {
       acceptInvitation(button.dataset.accept)
+    })
+  })
+
+  document.querySelectorAll('[data-accept-assignment]').forEach((button) => {
+    button.addEventListener('click', () => {
+      acceptIncidentAssignment(button.dataset.acceptAssignment)
     })
   })
 }
@@ -159,7 +217,7 @@ async function signIn() {
     if (error) throw error
 
     state.status = 'Signed in.'
-    await loadInvitations()
+    await loadPortalData()
   })
 }
 
@@ -185,18 +243,32 @@ async function signOut() {
     if (error) throw error
     state.session = null
     state.invitations = []
+    state.assignments = []
+    state.careCoreByIncident = {}
   })
 }
 
-async function loadInvitations() {
-  await withBusy('Loading invitations...', async () => {
+async function loadPortalData() {
+  await withBusy('Loading portal records...', async () => {
+    await loadInvitationsOnly()
+    await loadAssignmentsOnly()
+    state.status = [
+      state.invitations.length ? `${state.invitations.length} pending invitation(s)` : 'no pending invitations',
+      state.assignments.length ? `${state.assignments.length} incident assignment(s)` : 'no incident assignments',
+    ].join('; ')
+  })
+}
+
+async function loadInvitationsOnly() {
     const { data, error } = await supabase.rpc('list_my_invitation_records')
     if (error) throw error
     state.invitations = data ?? []
-    state.status = state.invitations.length
-      ? 'Pending invitations loaded.'
-      : 'No pending invitations for this email.'
-  })
+}
+
+async function loadAssignmentsOnly() {
+  const { data, error } = await supabase.rpc('list_my_incident_assignments')
+  if (error) throw error
+  state.assignments = data ?? []
 }
 
 async function acceptInvitation(invitationId) {
@@ -208,8 +280,43 @@ async function acceptInvitation(invitationId) {
     if (error) throw error
 
     state.status = 'Invitation accepted.'
-    await loadInvitations()
+    await loadInvitationsOnly()
+    await loadAssignmentsOnly()
   })
+}
+
+async function acceptIncidentAssignment(assignmentId) {
+  await withBusy('Accepting incident assignment...', async () => {
+    const { data, error } = await supabase.rpc('accept_incident_assignment', {
+      p_assignment_id: assignmentId,
+    })
+
+    if (error) throw error
+
+    const accepted = data?.[0]
+    if (accepted?.incident_id) {
+      await loadIncidentCareCore(accepted.incident_id)
+    }
+
+    await loadAssignmentsOnly()
+    state.status = 'Incident accepted. CARE_CORE grant loaded.'
+  })
+}
+
+async function loadIncidentCareCore(incidentId) {
+  const { data, error } = await supabase.rpc('list_my_incident_care_core', {
+    p_incident_id: incidentId,
+  })
+
+  if (error) throw error
+
+  const careCore = data?.[0]
+  if (careCore) {
+    state.careCoreByIncident = {
+      ...state.careCoreByIncident,
+      [incidentId]: careCore,
+    }
+  }
 }
 
 async function withBusy(status, action) {
@@ -238,6 +345,14 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll('`', '&#096;')
+}
+
+function formatDateTime(value) {
+  if (!value) return 'Not set'
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
 }
 
 initialize()

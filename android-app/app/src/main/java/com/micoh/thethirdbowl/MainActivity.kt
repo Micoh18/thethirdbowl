@@ -41,6 +41,7 @@ import com.micoh.thethirdbowl.data.CapsuleRepository
 import com.micoh.thethirdbowl.data.CatRepository
 import com.micoh.thethirdbowl.data.CatRow
 import com.micoh.thethirdbowl.data.CareCoreDraft
+import com.micoh.thethirdbowl.data.IncidentRow
 import com.micoh.thethirdbowl.data.InvitationRepository
 import com.micoh.thethirdbowl.data.InvitationRow
 import com.micoh.thethirdbowl.data.PlanRepository
@@ -132,6 +133,7 @@ private fun AuthScreen(
     var relationshipLabel by remember { mutableStateOf("") }
     var invitations by remember { mutableStateOf(emptyList<InvitationRow>()) }
     var plan by remember { mutableStateOf<PlanRow?>(null) }
+    var incident by remember { mutableStateOf<IncidentRow?>(null) }
     val catRepository = remember { CatRepository() }
     val capsuleRepository = remember { CapsuleRepository() }
     val invitationRepository = remember { InvitationRepository() }
@@ -141,6 +143,7 @@ private fun AuthScreen(
         careCore = capsuleRepository.loadCareCore(catId)
         invitations = invitationRepository.listInvitations(catId)
         plan = planRepository.getOrCreatePlan(catId)
+        incident = null
     }
 
     LaunchedEffect(Unit) {
@@ -303,6 +306,7 @@ private fun AuthScreen(
                             relationshipLabel = ""
                             invitations = emptyList()
                             plan = null
+                            incident = null
                             status = "Signed out."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -376,6 +380,7 @@ private fun AuthScreen(
                             selectedCatId = cat.id
                             careCore = CareCoreDraft()
                             invitations = emptyList()
+                            incident = null
                             plan = runCatching {
                                 planRepository.getOrCreatePlan(cat.id)
                             }.getOrNull()
@@ -508,6 +513,12 @@ private fun AuthScreen(
                     } ?: "No plan loaded.",
                     style = MaterialTheme.typography.bodyMedium
                 )
+                incident?.let {
+                    Text(
+                        text = "Incident: ${it.incidentState}; assigned to ${it.assignedRelationshipLabel}; response: ${it.assignmentState}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -554,6 +565,27 @@ private fun AuthScreen(
                     ) {
                         Text("Check in")
                     }
+                }
+                OutlinedButton(
+                    enabled = !isBusy && plan?.status == "armed",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            status = "Activating missed check-in incident..."
+                            runCatching {
+                                planRepository.activateMissedCheckIn(catId)
+                            }.onSuccess { createdIncident ->
+                                incident = createdIncident
+                                status = "Incident created. Notification delivery is not connected yet; responder can accept it in the web portal."
+                            }.onFailure { error ->
+                                status = error.readableMessage()
+                            }
+                            isBusy = false
+                        }
+                    }
+                ) {
+                    Text("Activate missed check-in")
                 }
             }
         }
