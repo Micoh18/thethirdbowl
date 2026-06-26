@@ -932,6 +932,8 @@ private fun CapsuleScreen(
     onCareCoreChange: (CareCoreDraft) -> Unit,
     onSaveCareCore: () -> Unit,
 ) {
+    var openSection by remember(selectedCat?.id) { mutableStateOf(CapsuleEditorSection.CoreCare) }
+
     if (selectedCat == null) {
         EmptyStateCard(
             title = "No cat selected",
@@ -948,7 +950,12 @@ private fun CapsuleScreen(
         )
         CompletionCard(careCore)
         CapsuleDisclosureCard(catName = selectedCat.name)
-        SectionCard(title = "Core care") {
+        ExpandableSectionCard(
+            title = "Core care",
+            summary = "${careCore.completionCount()}/3 essentials complete",
+            expanded = openSection == CapsuleEditorSection.CoreCare,
+            onToggle = { openSection = CapsuleEditorSection.CoreCare },
+        ) {
             Text(
                 text = "This is the minimum scope required before the ritual can be trusted. It can be released only to an accepted responder during an active incident.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -991,7 +998,16 @@ private fun CapsuleScreen(
             }
         }
 
-        SectionCard(title = "Home access") {
+        ExpandableSectionCard(
+            title = "Home access",
+            summary = if (careCore.homeAccessCompletionCount() > 0) {
+                "${careCore.homeAccessCompletionCount()}/3 details written"
+            } else {
+                "Collapsed - only for Home access helpers"
+            },
+            expanded = openSection == CapsuleEditorSection.HomeAccess,
+            onToggle = { openSection = CapsuleEditorSection.HomeAccess },
+        ) {
             Text(
                 text = "Only contacts invited as Home access helpers can see this during an active incident.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -1034,7 +1050,16 @@ private fun CapsuleScreen(
             }
         }
 
-        SectionCard(title = "Medical") {
+        ExpandableSectionCard(
+            title = "Medical",
+            summary = if (careCore.medicalCompletionCount() > 0) {
+                "${careCore.medicalCompletionCount()}/3 details written"
+            } else {
+                "Collapsed - only for Medical helpers"
+            },
+            expanded = openSection == CapsuleEditorSection.Medical,
+            onToggle = { openSection = CapsuleEditorSection.Medical },
+        ) {
             Text(
                 text = "Only contacts invited as Medical helpers can see this during an active incident.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -1887,6 +1912,53 @@ private fun SectionCard(
 }
 
 @Composable
+private fun ExpandableSectionCard(
+    title: String,
+    summary: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                OutlinedButton(onClick = onToggle) {
+                    Text(if (expanded) "Editing" else "Edit")
+                }
+            }
+            if (expanded) {
+                Spacer(modifier = Modifier.height(6.dp))
+                content()
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyStateCard(title: String, body: String) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -2287,6 +2359,12 @@ private enum class CareCircleAccessTemplate(
     ),
 }
 
+private enum class CapsuleEditorSection {
+    CoreCare,
+    HomeAccess,
+    Medical,
+}
+
 private sealed class UiStatus(open val message: String) {
     data class Info(override val message: String) : UiStatus(message)
     data class Success(override val message: String) : UiStatus(message)
@@ -2295,6 +2373,14 @@ private sealed class UiStatus(open val message: String) {
 
 private fun CareCoreDraft.completionCount(): Int {
     return listOf(feedingAndWater, hidingPlaces, doNotDo).count { it.isNotBlank() }
+}
+
+private fun CareCoreDraft.homeAccessCompletionCount(): Int {
+    return listOf(entryInstructions, keyLocation, safeRoom).count { it.isNotBlank() }
+}
+
+private fun CareCoreDraft.medicalCompletionCount(): Int {
+    return listOf(medications, vetInfo, medicalWarnings).count { it.isNotBlank() }
 }
 
 private fun PlanRow.statusLabel(): String {
