@@ -43,6 +43,8 @@ import com.micoh.thethirdbowl.data.CatRow
 import com.micoh.thethirdbowl.data.CareCoreDraft
 import com.micoh.thethirdbowl.data.InvitationRepository
 import com.micoh.thethirdbowl.data.InvitationRow
+import com.micoh.thethirdbowl.data.PlanRepository
+import com.micoh.thethirdbowl.data.PlanRow
 import com.micoh.thethirdbowl.data.SupabaseProvider
 import com.micoh.thethirdbowl.ui.theme.TheThirdBowlTheme
 import io.github.jan.supabase.auth.handleDeeplinks
@@ -129,9 +131,11 @@ private fun AuthScreen(
     var invitationEmail by remember { mutableStateOf("") }
     var relationshipLabel by remember { mutableStateOf("") }
     var invitations by remember { mutableStateOf(emptyList<InvitationRow>()) }
+    var plan by remember { mutableStateOf<PlanRow?>(null) }
     val catRepository = remember { CatRepository() }
     val capsuleRepository = remember { CapsuleRepository() }
     val invitationRepository = remember { InvitationRepository() }
+    val planRepository = remember { PlanRepository() }
 
     LaunchedEffect(Unit) {
         runCatching {
@@ -149,6 +153,7 @@ private fun AuthScreen(
                 selectedCatId?.let { catId ->
                     careCore = capsuleRepository.loadCareCore(catId)
                     invitations = invitationRepository.listInvitations(catId)
+                    plan = planRepository.getOrCreatePlan(catId)
                 }
             }
         }.onFailure { error ->
@@ -170,6 +175,7 @@ private fun AuthScreen(
                 selectedCatId?.let { catId ->
                     careCore = capsuleRepository.loadCareCore(catId)
                     invitations = invitationRepository.listInvitations(catId)
+                    plan = planRepository.getOrCreatePlan(catId)
                 }
             }.onFailure { error ->
                 status = error.readableMessage()
@@ -232,6 +238,7 @@ private fun AuthScreen(
                                 selectedCatId?.let { catId ->
                                     careCore = capsuleRepository.loadCareCore(catId)
                                     invitations = invitationRepository.listInvitations(catId)
+                                    plan = planRepository.getOrCreatePlan(catId)
                                 }
                                 status = "Signed in with Supabase."
                             }.onFailure { error ->
@@ -291,6 +298,7 @@ private fun AuthScreen(
                             invitationEmail = ""
                             relationshipLabel = ""
                             invitations = emptyList()
+                            plan = null
                             status = "Signed out."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -326,6 +334,7 @@ private fun AuthScreen(
                                         selectedCatId = cat.id
                                         careCore = draft
                                         invitations = invitationRepository.listInvitations(cat.id)
+                                        plan = planRepository.getOrCreatePlan(cat.id)
                                         status = "Loaded ${cat.name}."
                                     }.onFailure { error ->
                                         status = error.readableMessage()
@@ -366,6 +375,7 @@ private fun AuthScreen(
                             selectedCatId = cat.id
                             careCore = CareCoreDraft()
                             invitations = emptyList()
+                            plan = planRepository.getOrCreatePlan(cat.id)
                             status = "Created ${cat.name} in Supabase."
                         }.onFailure { error ->
                             status = error.readableMessage()
@@ -483,6 +493,64 @@ private fun AuthScreen(
                     }
                 ) {
                     Text("Create invitation record")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Continuity Plan",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = plan?.let {
+                        "Status: ${it.status}; next check-in: ${it.nextCheckInAt ?: "not scheduled"}"
+                    } ?: "No plan loaded.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        enabled = !isBusy,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            scope.launch {
+                                isBusy = true
+                                status = "Arming demo plan..."
+                                runCatching {
+                                    planRepository.armPlan(catId)
+                                }.onSuccess { armedPlan ->
+                                    plan = armedPlan
+                                    status = "Demo plan armed. Durable timers are not connected yet."
+                                }.onFailure { error ->
+                                    status = error.readableMessage()
+                                }
+                                isBusy = false
+                            }
+                        }
+                    ) {
+                        Text("Arm plan")
+                    }
+                    OutlinedButton(
+                        enabled = !isBusy && plan?.status == "armed",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            scope.launch {
+                                isBusy = true
+                                status = "Completing check-in..."
+                                runCatching {
+                                    planRepository.completeCheckIn(catId)
+                                }.onSuccess { result ->
+                                    plan = plan?.copy(nextCheckInAt = result.nextCheckInAt)
+                                    status = "Check-in completed at ${result.completedAt}."
+                                }.onFailure { error ->
+                                    status = error.readableMessage()
+                                }
+                                isBusy = false
+                            }
+                        }
+                    ) {
+                        Text("Check in")
+                    }
                 }
             }
         }
