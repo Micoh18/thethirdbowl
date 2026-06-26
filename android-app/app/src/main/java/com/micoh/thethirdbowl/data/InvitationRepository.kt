@@ -3,6 +3,8 @@ package com.micoh.thethirdbowl.data
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -25,6 +27,8 @@ class InvitationRepository {
         catId: String,
         email: String,
         relationshipLabel: String,
+        proposedRole: String,
+        proposedScopes: List<String>,
     ): InvitationRow {
         return client
             .postgrest
@@ -34,6 +38,11 @@ class InvitationRepository {
                     put("p_target_cat_id", catId)
                     put("p_invited_email", email.trim())
                     put("p_relationship_label", relationshipLabel.trim())
+                    put("p_proposed_role", proposedRole)
+                    put(
+                        "p_proposed_scopes",
+                        JsonArray(proposedScopes.map { JsonPrimitive(it) }),
+                    )
                 },
             )
             .decodeList<InvitationRow>()
@@ -49,6 +58,10 @@ data class InvitationRow(
     @SerialName("relationship_label")
     val relationshipLabel: String,
     val status: String,
+    @SerialName("proposed_role")
+    val proposedRole: String = "",
+    @SerialName("proposed_scopes")
+    val proposedScopes: List<String> = emptyList(),
     @SerialName("expires_at")
     val expiresAt: String,
     @SerialName("created_at")
