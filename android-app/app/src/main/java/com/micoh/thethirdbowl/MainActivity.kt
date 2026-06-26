@@ -1,5 +1,6 @@
 package com.micoh.thethirdbowl
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,28 +43,62 @@ import com.micoh.thethirdbowl.data.CatRow
 import com.micoh.thethirdbowl.data.CareCoreDraft
 import com.micoh.thethirdbowl.data.SupabaseProvider
 import com.micoh.thethirdbowl.ui.theme.TheThirdBowlTheme
+import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private var authCallbackStatus by mutableStateOf<String?>(null)
+    private var authCallbackEmail by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleAuthCallback(intent)
         enableEdgeToEdge()
         setContent {
             TheThirdBowlTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ThirdBowlApp()
+                    ThirdBowlApp(
+                        authCallbackStatus = authCallbackStatus,
+                        authCallbackEmail = authCallbackEmail,
+                    )
                 }
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAuthCallback(intent)
+    }
+
+    private fun handleAuthCallback(intent: Intent?) {
+        if (intent == null) return
+
+        SupabaseProvider.client.handleDeeplinks(
+            intent,
+            { session ->
+                authCallbackEmail = session.user?.email
+                authCallbackStatus = "Email verified. Signed in with Supabase."
+            },
+            { error ->
+                authCallbackStatus = error.readableMessage()
+            },
+        )
+    }
 }
 
 @Composable
-private fun ThirdBowlApp() {
+private fun ThirdBowlApp(
+    authCallbackStatus: String?,
+    authCallbackEmail: String?,
+) {
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         AuthScreen(
+            authCallbackStatus = authCallbackStatus,
+            authCallbackEmail = authCallbackEmail,
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
@@ -74,7 +109,11 @@ private fun ThirdBowlApp() {
 }
 
 @Composable
-private fun AuthScreen(modifier: Modifier = Modifier) {
+private fun AuthScreen(
+    authCallbackStatus: String? = null,
+    authCallbackEmail: String? = null,
+    modifier: Modifier = Modifier,
+) {
     val scope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -107,6 +146,26 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
             }
         }.onFailure { error ->
             status = error.readableMessage()
+        }
+    }
+
+    LaunchedEffect(authCallbackStatus, authCallbackEmail) {
+        if (authCallbackStatus == null) return@LaunchedEffect
+
+        status = authCallbackStatus
+        if (authCallbackEmail != null) {
+            signedInEmail = authCallbackEmail
+            runCatching {
+                catRepository.listMyCats()
+            }.onSuccess { loadedCats ->
+                cats = loadedCats
+                selectedCatId = loadedCats.firstOrNull()?.id
+                selectedCatId?.let { catId ->
+                    careCore = capsuleRepository.loadCareCore(catId)
+                }
+            }.onFailure { error ->
+                status = error.readableMessage()
+            }
         }
     }
 
@@ -183,12 +242,15 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
                             isBusy = true
                             status = "Creating account..."
                             runCatching {
-                                SupabaseProvider.client.auth.signUpWith(Email) {
+                                SupabaseProvider.client.auth.signUpWith(
+                                    provider = Email,
+                                    redirectUrl = AUTH_CALLBACK_URL,
+                                ) {
                                     this.email = email
                                     this.password = password
                                 }
                             }.onSuccess {
-                                status = "Account created. Check the verification email before signing in."
+                                status = "Account created. Open the verification email on this device."
                             }.onFailure { error ->
                                 status = error.readableMessage()
                             }
@@ -369,6 +431,8 @@ private fun AuthScreen(modifier: Modifier = Modifier) {
 private fun Throwable.readableMessage(): String {
     return message?.takeIf { it.isNotBlank() } ?: "The request failed."
 }
+
+private const val AUTH_CALLBACK_URL = "thethirdbowl://auth-callback"
 
 @Preview(showBackground = true)
 @Composable
