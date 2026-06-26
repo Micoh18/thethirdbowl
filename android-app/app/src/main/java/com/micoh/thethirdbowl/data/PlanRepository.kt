@@ -47,6 +47,19 @@ class PlanRepository {
             .decodeList<CheckInResult>()
             .first()
     }
+
+    suspend fun triggerDeveloperMissedCheckIn(catId: String): DeveloperProcessorResult {
+        return client
+            .postgrest
+            .rpc(
+                function = "trigger_developer_missed_check_in",
+                parameters = buildJsonObject {
+                    put("target_cat_id", catId)
+                },
+            )
+            .decodeList<DeveloperProcessorResult>()
+            .first()
+    }
 }
 
 @Serializable
@@ -76,4 +89,14 @@ data class CheckInResult(
     val completedAt: String,
     @SerialName("next_check_in_at")
     val nextCheckInAt: String,
+)
+
+@Serializable
+data class DeveloperProcessorResult(
+    @SerialName("processed_plans")
+    val processedPlans: Int,
+    @SerialName("incidents_created")
+    val incidentsCreated: Int,
+    @SerialName("assignments_created")
+    val assignmentsCreated: Int,
 )

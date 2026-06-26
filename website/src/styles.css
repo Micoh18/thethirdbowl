@@ -378,6 +378,18 @@ h3 {
   margin: 0;
 }
 
+.capsule-section {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #e7ded1;
+  padding-top: 12px;
+}
+
+.capsule-section h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
 .care-core dt {
   color: #1f7a5a;
   font-weight: 800;

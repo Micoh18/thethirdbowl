@@ -27,16 +27,23 @@ class CapsuleRepository {
             .select {
                 filter {
                     eq("capsule_id", capsule.id)
-                    eq("scope", "CARE_CORE")
                 }
             }
             .decodeList<CapsuleSectionRow>()
 
-        val content = sections.firstOrNull()?.contentJson ?: return CareCoreDraft()
+        val careCoreContent = sections.firstOrNull { it.scope == "CARE_CORE" }?.contentJson
+        val homeAccessContent = sections.firstOrNull { it.scope == "HOME_ACCESS" }?.contentJson
+        val medicalContent = sections.firstOrNull { it.scope == "MEDICAL" }?.contentJson
         return CareCoreDraft(
-            feedingAndWater = content.stringValue("feeding_and_water"),
-            hidingPlaces = content.stringValue("hiding_places"),
-            doNotDo = content.stringValue("do_not_do"),
+            feedingAndWater = careCoreContent.stringValue("feeding_and_water"),
+            hidingPlaces = careCoreContent.stringValue("hiding_places"),
+            doNotDo = careCoreContent.stringValue("do_not_do"),
+            entryInstructions = homeAccessContent.stringValue("entry_instructions"),
+            keyLocation = homeAccessContent.stringValue("key_location"),
+            safeRoom = homeAccessContent.stringValue("safe_room"),
+            medications = medicalContent.stringValue("medications"),
+            vetInfo = medicalContent.stringValue("vet_info"),
+            medicalWarnings = medicalContent.stringValue("medical_warnings"),
         )
     }
 
@@ -50,24 +57,47 @@ class CapsuleRepository {
             }
             .decodeSingle<CapsuleRow>()
 
-        val request = UpsertCapsuleSectionRequest(
-            capsuleId = capsule.id,
-            scope = "CARE_CORE",
-            schemaVersion = 1,
-            contentJson = buildJsonObject {
-                put("feeding_and_water", draft.feedingAndWater.trim())
-                put("hiding_places", draft.hidingPlaces.trim())
-                put("do_not_do", draft.doNotDo.trim())
-            },
+        val trimmed = draft.trimmed()
+        val requests = listOf(
+            UpsertCapsuleSectionRequest(
+                capsuleId = capsule.id,
+                scope = "CARE_CORE",
+                schemaVersion = 1,
+                contentJson = buildJsonObject {
+                    put("feeding_and_water", trimmed.feedingAndWater)
+                    put("hiding_places", trimmed.hidingPlaces)
+                    put("do_not_do", trimmed.doNotDo)
+                },
+            ),
+            UpsertCapsuleSectionRequest(
+                capsuleId = capsule.id,
+                scope = "HOME_ACCESS",
+                schemaVersion = 1,
+                contentJson = buildJsonObject {
+                    put("entry_instructions", trimmed.entryInstructions)
+                    put("key_location", trimmed.keyLocation)
+                    put("safe_room", trimmed.safeRoom)
+                },
+            ),
+            UpsertCapsuleSectionRequest(
+                capsuleId = capsule.id,
+                scope = "MEDICAL",
+                schemaVersion = 1,
+                contentJson = buildJsonObject {
+                    put("medications", trimmed.medications)
+                    put("vet_info", trimmed.vetInfo)
+                    put("medical_warnings", trimmed.medicalWarnings)
+                },
+            ),
         )
 
         client
             .from("capsule_sections")
-            .upsert(request) {
+            .upsert(requests) {
                 onConflict = "capsule_id,scope"
             }
 
-        return draft.trimmed()
+        return trimmed
     }
 }
 
@@ -76,12 +106,24 @@ data class CareCoreDraft(
     val feedingAndWater: String = "",
     val hidingPlaces: String = "",
     val doNotDo: String = "",
+    val entryInstructions: String = "",
+    val keyLocation: String = "",
+    val safeRoom: String = "",
+    val medications: String = "",
+    val vetInfo: String = "",
+    val medicalWarnings: String = "",
 ) {
     fun trimmed(): CareCoreDraft {
         return copy(
             feedingAndWater = feedingAndWater.trim(),
             hidingPlaces = hidingPlaces.trim(),
             doNotDo = doNotDo.trim(),
+            entryInstructions = entryInstructions.trim(),
+            keyLocation = keyLocation.trim(),
+            safeRoom = safeRoom.trim(),
+            medications = medications.trim(),
+            vetInfo = vetInfo.trim(),
+            medicalWarnings = medicalWarnings.trim(),
         )
     }
 }
@@ -114,6 +156,6 @@ private data class UpsertCapsuleSectionRequest(
     val contentJson: JsonObject,
 )
 
-private fun JsonObject.stringValue(key: String): String {
-    return this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+private fun JsonObject?.stringValue(key: String): String {
+    return this?.get(key)?.jsonPrimitive?.contentOrNull.orEmpty()
 }

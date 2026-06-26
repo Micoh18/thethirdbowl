@@ -236,7 +236,7 @@ function renderInvitation(invitation) {
 }
 
 function renderAssignment(assignment) {
-  const careCore = state.careCoreByIncident[assignment.incident_id]
+  const capsuleSections = state.careCoreByIncident[assignment.incident_id]
   const accepted = assignment.assignment_state === 'accepted'
   const catReached = Boolean(assignment.cat_reached_at)
   const acceptDisabled = state.busy || accepted
@@ -262,7 +262,7 @@ function renderAssignment(assignment) {
         ${accepted ? 'Responsibility accepted' : 'Accept responsibility'}
       </button>
       ${accepted ? renderResolutionControls(assignment.assignment_id, resolutionNote, catReached) : ''}
-      ${careCore ? renderCareCore(careCore) : ''}
+      ${capsuleSections ? renderAuthorizedCapsule(capsuleSections) : ''}
     </article>
   `
 }
@@ -301,26 +301,62 @@ function renderResolutionControls(assignmentId, resolutionNote, catReached) {
   `
 }
 
-function renderCareCore(careCore) {
-  const content = careCore.content_json ?? {}
+function renderAuthorizedCapsule(sections) {
+  const orderedSections = Array.isArray(sections) ? sections : [sections]
   return `
     <div class="care-core">
       <div class="section-title tight">
         <div>
           <p class="eyebrow">Authorized Capsule</p>
-          <h3>Core care</h3>
+          <h3>Visible care details</h3>
         </div>
-        ${renderPill('CARE_CORE')}
+        ${renderPill(`${orderedSections.length} section${orderedSections.length === 1 ? '' : 's'}`)}
+      </div>
+      ${orderedSections.map(renderCapsuleSection).join('')}
+    </div>
+  `
+}
+
+function renderCapsuleSection(section) {
+  const content = section.content_json ?? {}
+
+  if (section.scope === 'HOME_ACCESS') {
+    return renderDefinitionSection('Home access', section.scope, [
+      ['Entry instructions', content.entry_instructions],
+      ['Key or access location', content.key_location],
+      ['Safe room or home hazards', content.safe_room],
+    ])
+  }
+
+  if (section.scope === 'MEDICAL') {
+    return renderDefinitionSection('Medical', section.scope, [
+      ['Medication and dosing', content.medications],
+      ['Vet and insurance context', content.vet_info],
+      ['Medical warnings', content.medical_warnings],
+    ])
+  }
+
+  return renderDefinitionSection('Core care', section.scope, [
+    ['Food and water', content.feeding_and_water],
+    ['Hiding places and approach', content.hiding_places],
+    ['Never do this', content.do_not_do],
+  ])
+}
+
+function renderDefinitionSection(title, scope, rows) {
+  return `
+    <section class="capsule-section">
+      <div class="section-title tight">
+        <h4>${escapeHtml(title)}</h4>
+        ${renderPill(scope)}
       </div>
       <dl>
-        <dt>Food and water</dt>
-        <dd>${escapeHtml(content.feeding_and_water || 'Not set')}</dd>
-        <dt>Hiding places and approach</dt>
-        <dd>${escapeHtml(content.hiding_places || 'Not set')}</dd>
-        <dt>Never do this</dt>
-        <dd>${escapeHtml(content.do_not_do || 'Not set')}</dd>
+        ${rows.map(([label, value]) => `
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(value || 'Not set')}</dd>
+        `).join('')}
       </dl>
-    </div>
+    </section>
   `
 }
 
@@ -441,6 +477,7 @@ async function loadPortalData() {
   await withBusy('Refreshing your Care Circle...', async () => {
     await loadInvitationsOnly()
     await loadAssignmentsOnly()
+    await loadAuthorizedCapsuleSectionsForAcceptedAssignments()
 
     if (state.assignments.length) {
       setStatus('info', `${state.assignments.length} incident assignment(s) available.`)
@@ -462,6 +499,22 @@ async function loadAssignmentsOnly() {
   const { data, error } = await supabase.rpc('list_my_incident_assignments')
   if (error) throw error
   state.assignments = data ?? []
+}
+
+async function loadAuthorizedCapsuleSectionsForAcceptedAssignments() {
+  const acceptedIncidentIds = [
+    ...new Set(
+      state.assignments
+        .filter((assignment) => assignment.assignment_state === 'accepted')
+        .map((assignment) => assignment.incident_id),
+    ),
+  ]
+
+  for (const incidentId of acceptedIncidentIds) {
+    if (!state.careCoreByIncident[incidentId]) {
+      await loadIncidentCapsuleSections(incidentId)
+    }
+  }
 }
 
 async function acceptInvitation(invitationId) {
@@ -488,7 +541,7 @@ async function acceptIncidentAssignment(assignmentId) {
 
     const accepted = data?.[0]
     if (accepted?.incident_id) {
-      await loadIncidentCareCore(accepted.incident_id)
+      await loadIncidentCapsuleSections(accepted.incident_id)
     }
 
     await loadAssignmentsOnly()
@@ -536,18 +589,18 @@ async function resolveIncidentAssignment(assignmentId) {
   })
 }
 
-async function loadIncidentCareCore(incidentId) {
-  const { data, error } = await supabase.rpc('list_my_incident_care_core', {
+async function loadIncidentCapsuleSections(incidentId) {
+  const { data, error } = await supabase.rpc('list_my_incident_capsule_sections', {
     p_incident_id: incidentId,
   })
 
   if (error) throw error
 
-  const careCore = data?.[0]
-  if (careCore) {
+  const sections = data ?? []
+  if (sections.length) {
     state.careCoreByIncident = {
       ...state.careCoreByIncident,
-      [incidentId]: careCore,
+      [incidentId]: sections,
     }
   }
 }

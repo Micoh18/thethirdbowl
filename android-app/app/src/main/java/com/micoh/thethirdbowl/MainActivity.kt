@@ -502,6 +502,33 @@ private fun ThirdBowlApp(
                         }
                     },
                 )
+
+                AppTab.Settings -> SettingsScreen(
+                    selectedCat = selectedCat,
+                    plan = plan,
+                    incident = incident,
+                    isBusy = isBusy,
+                    onTriggerMissedCheckIn = {
+                        val catId = selectedCatId ?: return@SettingsScreen
+                        scope.launch {
+                            isBusy = true
+                            status = UiStatus.Info("Triggering developer inactivity...")
+                            runCatching {
+                                planRepository.triggerDeveloperMissedCheckIn(catId)
+                            }.onSuccess { result ->
+                                plan = planRepository.getOrCreatePlan(catId)
+                                incident = incidentRepository.getActiveIncident(catId)
+                                auditEvents = auditRepository.listCatEvents(catId)
+                                status = UiStatus.Success(
+                                    "Developer trigger processed ${result.processedPlans} plan(s), created ${result.incidentsCreated} incident(s).",
+                                )
+                            }.onFailure { error ->
+                                status = UiStatus.Error(error.readableMessage())
+                            }
+                            isBusy = false
+                        }
+                    },
+                )
             }
         }
     }
@@ -826,24 +853,95 @@ private fun CapsuleScreen(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onSaveCareCore,
             ) {
-                Text("Save routine")
+                Text("Save Capsule")
             }
         }
 
-        SensitiveScopeCard(
-            title = "Home access",
-            status = "Prepared scope",
-            body = "Address, keys and entry instructions should only be visible to someone who can physically reach the home.",
-            visibleWhen = "Only during an active incident, and only for contacts invited with Home access.",
-            enabled = false,
-        )
-        SensitiveScopeCard(
-            title = "Medical",
-            status = "Prepared scope",
-            body = "Medication and vet context belongs in a separate medical scope so it is not exposed to every responder.",
-            visibleWhen = "Only during an active incident, and only for contacts invited as a Medical helper.",
-            enabled = false,
-        )
+        SectionCard(title = "Home access") {
+            Text(
+                text = "Only contacts invited as Home access helpers can see this during an active incident.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = careCore.entryInstructions,
+                onValueChange = { onCareCoreChange(careCore.copy(entryInstructions = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Entry instructions") },
+                supportingText = { Text("Building, door, alarm or timing details.") },
+                minLines = 3,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = careCore.keyLocation,
+                onValueChange = { onCareCoreChange(careCore.copy(keyLocation = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Key or access location") },
+                supportingText = { Text("Keep this practical and only for people you trust with home access.") },
+                minLines = 2,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = careCore.safeRoom,
+                onValueChange = { onCareCoreChange(careCore.copy(safeRoom = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Safe room or home hazards") },
+                supportingText = { Text("Where to contain the cat, and what to avoid in the home.") },
+                minLines = 2,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onSaveCareCore,
+            ) {
+                Text("Save home access")
+            }
+        }
+
+        SectionCard(title = "Medical") {
+            Text(
+                text = "Only contacts invited as Medical helpers can see this during an active incident.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = careCore.medications,
+                onValueChange = { onCareCoreChange(careCore.copy(medications = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Medication and dosing") },
+                supportingText = { Text("Medicine names, dose windows and what to do if a dose was missed.") },
+                minLines = 3,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = careCore.vetInfo,
+                onValueChange = { onCareCoreChange(careCore.copy(vetInfo = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Vet and insurance context") },
+                supportingText = { Text("Clinic, phone, policy or emergency contact details.") },
+                minLines = 2,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = careCore.medicalWarnings,
+                onValueChange = { onCareCoreChange(careCore.copy(medicalWarnings = it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Medical warnings") },
+                supportingText = { Text("Allergies, stress signs, forbidden foods or handling limits.") },
+                minLines = 2,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onSaveCareCore,
+            ) {
+                Text("Save medical")
+            }
+        }
     }
 }
 
@@ -1046,6 +1144,55 @@ private fun HistoryScreen(
                     }
                     AuditEventCard(event)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    selectedCat: CatRow?,
+    plan: PlanRow?,
+    incident: IncidentRow?,
+    isBusy: Boolean,
+    onTriggerMissedCheckIn: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ScreenTitle(
+            eyebrow = selectedCat?.name ?: "No cat selected",
+            title = "Settings",
+            body = "Operational controls for local testing and product setup.",
+        )
+
+        SectionCard(title = "Developer settings") {
+            Text(
+                text = "Use this only while testing. It moves the selected cat's armed plan past its grace window and asks the backend processor to create the missed check-in incident.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            TimelineRow(
+                label = "Selected cat",
+                value = selectedCat?.name ?: "No cat selected",
+                active = selectedCat != null,
+            )
+            TimelineRow(
+                label = "Plan",
+                value = plan?.let { "${it.statusLabel()} - ${it.nextCheckInAt?.humanDateTime() ?: "no deadline"}" } ?: "No plan",
+                active = plan?.status == "armed",
+            )
+            TimelineRow(
+                label = "Incident",
+                value = incident?.let { "${it.incidentState.humanLabel()} already active" } ?: "No active incident",
+                active = incident == null,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                enabled = !isBusy && selectedCat != null && plan?.status == "armed" && incident == null,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onTriggerMissedCheckIn,
+            ) {
+                Text("Trigger inactivity now")
             }
         }
     }
@@ -1973,6 +2120,7 @@ private enum class AppTab(
     Capsule("Capsule", "C"),
     Circle("Circle", "P"),
     History("History", "A"),
+    Settings("Settings", "S"),
 }
 
 private enum class CareCircleAccessTemplate(
