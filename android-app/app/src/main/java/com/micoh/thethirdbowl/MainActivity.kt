@@ -81,6 +81,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -875,11 +876,11 @@ private fun AuthExperience(
     onSignUp: () -> Unit,
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
-    var showCreateRequirements by remember { mutableStateOf(false) }
+    var isSignInMode by remember { mutableStateOf(false) }
     val emailValid = email.isValidEmailInput()
     val passwordProfile = passwordSecurityProfile(password)
     val canSignIn = !isBusy && emailValid && password.isNotBlank()
-    val canCreate = !isBusy && emailValid && password.isNotBlank()
+    val canCreate = !isBusy && emailValid && passwordProfile.isStrong
 
     Column(
         modifier = Modifier
@@ -908,7 +909,7 @@ private fun AuthExperience(
             }
         }
         Text(
-            text = "Sign in before private routines, contacts, home access, or medical notes are unlocked.",
+            text = "Create an account or sign in before private routines, contacts, home access, or medical notes are unlocked.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -950,12 +951,16 @@ private fun AuthExperience(
                     )
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(
-                            text = "Secure sign-in",
+                            text = if (isSignInMode) "Secure sign-in" else "Create your account",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            text = "Invitations are matched to this exact account.",
+                            text = if (isSignInMode) {
+                                "Use the account that owns the invited email."
+                            } else {
+                                "Start with the exact email that received the invite."
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -983,10 +988,7 @@ private fun AuthExperience(
                 )
                 OutlinedTextField(
                     value = password,
-                    onValueChange = {
-                        if (it.isBlank()) showCreateRequirements = false
-                        onPasswordChange(it)
-                    },
+                    onValueChange = onPasswordChange,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Password") },
                     singleLine = true,
@@ -1002,7 +1004,7 @@ private fun AuthExperience(
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
-                if (showCreateRequirements) {
+                if (!isSignInMode) {
                     PasswordSecurityMeter(profile = passwordProfile)
                     PasswordRequirementChecklist(profile = passwordProfile)
                     Text(
@@ -1011,33 +1013,63 @@ private fun AuthExperience(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (isSignInMode) {
                     Button(
                         enabled = canSignIn,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            showCreateRequirements = false
-                            onSignIn()
-                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onSignIn,
                     ) {
                         Text("Sign in")
                     }
-                    OutlinedButton(
+                    AuthModeSwitchRow(
+                        prompt = "Need an account?",
+                        action = "Create account instead",
+                        onClick = { isSignInMode = false },
+                    )
+                } else {
+                    Button(
                         enabled = canCreate,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            showCreateRequirements = true
-                            onSignUp()
-                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onSignUp,
                     ) {
                         Text("Create account")
                     }
+                    AuthModeSwitchRow(
+                        prompt = "Already have an account?",
+                        action = "Sign in instead",
+                        onClick = { isSignInMode = true },
+                    )
                 }
             }
         }
 
         TrustChecklist()
         StatusBanner(status = status, isBusy = isBusy)
+    }
+}
+
+@Composable
+private fun AuthModeSwitchRow(
+    prompt: String,
+    action: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = prompt,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onClick) {
+            Text(
+                text = action,
+                textDecoration = TextDecoration.Underline,
+            )
+        }
     }
 }
 

@@ -42,7 +42,7 @@ let state = {
   email: '',
   password: '',
   passwordVisible: false,
-  showCreateRequirements: false,
+  authMode: 'signUp',
   authNotice: null,
   session: null,
   invitations: [],
@@ -566,10 +566,11 @@ function renderStatus() {
 }
 
 function renderSignedOut() {
+  const isSignInMode = state.authMode === 'signIn'
   const emailReady = isValidEmail(state.email)
   const passwordProfile = passwordSecurityProfile(state.password)
   const signInDisabled = state.busy || !canSignIn()
-  const signUpDisabled = state.busy || !canAttemptSignUp()
+  const signUpDisabled = state.busy || !canSignUp()
 
   return `
     <section class="auth-panel secure-auth">
@@ -579,8 +580,12 @@ function renderSignedOut() {
         </span>
         <div>
           <p class="eyebrow">Protected access</p>
-          <h2>Verify before care details</h2>
-          <p>Invitations and incident handoffs are tied to the exact email the caregiver trusted. A link alone is not enough.</p>
+          <h2>${isSignInMode ? 'Secure sign-in' : 'Create your account'}</h2>
+          <p>${
+            isSignInMode
+              ? 'Use the account that owns the invited email before private care details are shown.'
+              : 'Start with the exact email the caregiver trusted. A link alone is not enough.'
+          }</p>
         </div>
       </div>
 
@@ -620,7 +625,7 @@ function renderSignedOut() {
           <input
             id="password"
             type="${state.passwordVisible ? 'text' : 'password'}"
-            autocomplete="current-password"
+            autocomplete="${isSignInMode ? 'current-password' : 'new-password'}"
             value="${escapeAttribute(state.password)}"
           />
           <button id="toggle-password" class="input-action" type="button" aria-pressed="${state.passwordVisible ? 'true' : 'false'}">
@@ -629,7 +634,7 @@ function renderSignedOut() {
         </span>
       </label>
 
-      ${state.showCreateRequirements ? `
+      ${!isSignInMode ? `
         <div class="password-strength" id="password-strength" data-tone="${escapeAttribute(passwordProfile.tone)}">
           <div class="password-strength-head">
             <span>Password strength</span>
@@ -646,9 +651,18 @@ function renderSignedOut() {
       ` : ''}
 
       <div class="actions auth-actions">
-        <button id="sign-in" ${signInDisabled ? 'disabled' : ''}>Sign in</button>
-        <button id="sign-up" class="secondary" ${signUpDisabled ? 'disabled' : ''}>Create account</button>
+        ${
+          isSignInMode
+            ? `<button id="sign-in" ${signInDisabled ? 'disabled' : ''}>Sign in</button>`
+            : `<button id="sign-up" ${signUpDisabled ? 'disabled' : ''}>Create account</button>`
+        }
       </div>
+
+      ${
+        isSignInMode
+          ? `<p class="auth-mode-switch">Need an account? <button id="show-sign-up" type="button">Create account instead</button></p>`
+          : `<p class="auth-mode-switch">Already have an account? <button id="show-sign-in" type="button">Sign in instead</button></p>`
+      }
     </section>
 
     <section class="trust-strip">
@@ -970,10 +984,6 @@ function canSignIn() {
   return isValidEmail(state.email) && state.password.length > 0
 }
 
-function canAttemptSignUp() {
-  return isValidEmail(state.email) && state.password.length > 0
-}
-
 function canSignUp() {
   return isValidEmail(state.email) && passwordSecurityProfile(state.password).strong
 }
@@ -1008,7 +1018,7 @@ function syncAuthControls() {
   }
 
   if (signInButton) signInButton.disabled = state.busy || !canSignIn()
-  if (signUpButton) signUpButton.disabled = state.busy || !canAttemptSignUp()
+  if (signUpButton) signUpButton.disabled = state.busy || !canSignUp()
   if (strength) strength.dataset.tone = profile.tone
   if (strengthLabel) strengthLabel.textContent = profile.label
   if (meter) meter.style.setProperty('--strength', `${profile.percent}%`)
@@ -1026,11 +1036,6 @@ function bindEvents() {
 
   document.querySelector('#password')?.addEventListener('input', (event) => {
     state.password = event.target.value
-    if (state.password.length === 0 && state.showCreateRequirements) {
-      state.showCreateRequirements = false
-      render()
-      return
-    }
     syncAuthControls()
   })
 
@@ -1041,6 +1046,14 @@ function bindEvents() {
 
   document.querySelector('#sign-in')?.addEventListener('click', signIn)
   document.querySelector('#sign-up')?.addEventListener('click', signUp)
+  document.querySelector('#show-sign-in')?.addEventListener('click', () => {
+    state.authMode = 'signIn'
+    render()
+  })
+  document.querySelector('#show-sign-up')?.addEventListener('click', () => {
+    state.authMode = 'signUp'
+    render()
+  })
   document.querySelector('#sign-out')?.addEventListener('click', signOut)
   document.querySelector('#refresh')?.addEventListener('click', loadPortalData)
 
@@ -1081,7 +1094,7 @@ function bindEvents() {
 }
 
 async function signIn() {
-  state.showCreateRequirements = false
+  state.authMode = 'signIn'
   if (!canSignIn()) {
     setStatus('error', 'Enter a valid email and password before signing in.')
     render()
@@ -1102,7 +1115,7 @@ async function signIn() {
 }
 
 async function signUp() {
-  state.showCreateRequirements = true
+  state.authMode = 'signUp'
   if (!canSignUp()) {
     setStatus('error', 'Use a valid email and a stronger password before creating an account.')
     render()
@@ -1139,7 +1152,6 @@ async function signOut() {
     state.assignments = []
     state.careCoreByIncident = {}
     state.resolutionNotes = {}
-    state.showCreateRequirements = false
     state.busy = false
     setStatus('info', 'Signed out.')
   } catch (error) {
