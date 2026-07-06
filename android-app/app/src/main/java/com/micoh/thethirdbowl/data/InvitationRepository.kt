@@ -55,6 +55,8 @@ data class InvitationRow(
     val id: String,
     @SerialName("cat_id")
     val catId: String,
+    @SerialName("invited_email_masked")
+    val invitedEmailMasked: String = "",
     @SerialName("relationship_label")
     val relationshipLabel: String,
     val status: String,
