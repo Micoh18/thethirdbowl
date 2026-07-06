@@ -850,10 +850,11 @@ private fun AuthExperience(
     onSignUp: () -> Unit,
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
+    var showCreateRequirements by remember { mutableStateOf(false) }
     val emailValid = email.isValidEmailInput()
     val passwordProfile = passwordSecurityProfile(password)
     val canSignIn = !isBusy && emailValid && password.isNotBlank()
-    val canCreate = !isBusy && emailValid && passwordProfile.isStrong
+    val canCreate = !isBusy && emailValid && password.isNotBlank()
 
     Column(
         modifier = Modifier
@@ -957,7 +958,10 @@ private fun AuthExperience(
                 )
                 OutlinedTextField(
                     value = password,
-                    onValueChange = onPasswordChange,
+                    onValueChange = {
+                        if (it.isBlank()) showCreateRequirements = false
+                        onPasswordChange(it)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Password") },
                     singleLine = true,
@@ -973,25 +977,33 @@ private fun AuthExperience(
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
-                PasswordSecurityMeter(profile = passwordProfile)
-                PasswordRequirementChecklist(profile = passwordProfile)
-                Text(
-                    text = "Sign in accepts your current password. Creating a new account requires every protection above.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (showCreateRequirements) {
+                    PasswordSecurityMeter(profile = passwordProfile)
+                    PasswordRequirementChecklist(profile = passwordProfile)
+                    Text(
+                        text = "Only new accounts need to meet every protection above.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         enabled = canSignIn,
                         modifier = Modifier.weight(1f),
-                        onClick = onSignIn,
+                        onClick = {
+                            showCreateRequirements = false
+                            onSignIn()
+                        },
                     ) {
                         Text("Sign in")
                     }
                     OutlinedButton(
                         enabled = canCreate,
                         modifier = Modifier.weight(1f),
-                        onClick = onSignUp,
+                        onClick = {
+                            showCreateRequirements = true
+                            onSignUp()
+                        },
                     ) {
                         Text("Create account")
                     }

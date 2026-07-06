@@ -42,6 +42,7 @@ let state = {
   email: '',
   password: '',
   passwordVisible: false,
+  showCreateRequirements: false,
   session: null,
   invitations: [],
   assignments: [],
@@ -462,7 +463,7 @@ function renderSignedOut() {
   const emailReady = isValidEmail(state.email)
   const passwordProfile = passwordSecurityProfile(state.password)
   const signInDisabled = state.busy || !canSignIn()
-  const signUpDisabled = state.busy || !canSignUp()
+  const signUpDisabled = state.busy || !canAttemptSignUp()
 
   return `
     <section class="auth-panel secure-auth">
@@ -522,19 +523,21 @@ function renderSignedOut() {
         </span>
       </label>
 
-      <div class="password-strength" id="password-strength" data-tone="${escapeAttribute(passwordProfile.tone)}">
-        <div class="password-strength-head">
-          <span>Password strength</span>
-          <strong id="password-strength-label">${escapeHtml(passwordProfile.label)}</strong>
+      ${state.showCreateRequirements ? `
+        <div class="password-strength" id="password-strength" data-tone="${escapeAttribute(passwordProfile.tone)}">
+          <div class="password-strength-head">
+            <span>Password strength</span>
+            <strong id="password-strength-label">${escapeHtml(passwordProfile.label)}</strong>
+          </div>
+          <span class="password-meter" style="--strength: ${passwordProfile.percent}%"><span></span></span>
         </div>
-        <span class="password-meter" style="--strength: ${passwordProfile.percent}%"><span></span></span>
-      </div>
 
-      <div class="password-checks" id="password-checks">
-        ${passwordProfile.checks.map(renderPasswordCheck).join('')}
-      </div>
+        <div class="password-checks" id="password-checks">
+          ${passwordProfile.checks.map(renderPasswordCheck).join('')}
+        </div>
 
-      <p class="auth-note">Sign in accepts your current password. Creating a new account requires every protection above.</p>
+        <p class="auth-note">Only new accounts need to meet every protection above.</p>
+      ` : ''}
 
       <div class="actions auth-actions">
         <button id="sign-in" ${signInDisabled ? 'disabled' : ''}>Sign in</button>
@@ -861,6 +864,10 @@ function canSignIn() {
   return isValidEmail(state.email) && state.password.length > 0
 }
 
+function canAttemptSignUp() {
+  return isValidEmail(state.email) && state.password.length > 0
+}
+
 function canSignUp() {
   return isValidEmail(state.email) && passwordSecurityProfile(state.password).strong
 }
@@ -895,7 +902,7 @@ function syncAuthControls() {
   }
 
   if (signInButton) signInButton.disabled = state.busy || !canSignIn()
-  if (signUpButton) signUpButton.disabled = state.busy || !canSignUp()
+  if (signUpButton) signUpButton.disabled = state.busy || !canAttemptSignUp()
   if (strength) strength.dataset.tone = profile.tone
   if (strengthLabel) strengthLabel.textContent = profile.label
   if (meter) meter.style.setProperty('--strength', `${profile.percent}%`)
@@ -913,6 +920,11 @@ function bindEvents() {
 
   document.querySelector('#password')?.addEventListener('input', (event) => {
     state.password = event.target.value
+    if (state.password.length === 0 && state.showCreateRequirements) {
+      state.showCreateRequirements = false
+      render()
+      return
+    }
     syncAuthControls()
   })
 
@@ -963,6 +975,7 @@ function bindEvents() {
 }
 
 async function signIn() {
+  state.showCreateRequirements = false
   if (!canSignIn()) {
     setStatus('error', 'Enter a valid email and password before signing in.')
     render()
@@ -983,6 +996,7 @@ async function signIn() {
 }
 
 async function signUp() {
+  state.showCreateRequirements = true
   if (!canSignUp()) {
     setStatus('error', 'Use a valid email and a stronger password before creating an account.')
     render()
@@ -1019,6 +1033,7 @@ async function signOut() {
     state.assignments = []
     state.careCoreByIncident = {}
     state.resolutionNotes = {}
+    state.showCreateRequirements = false
     state.busy = false
     setStatus('info', 'Signed out.')
   } catch (error) {
