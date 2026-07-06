@@ -28,6 +28,8 @@ captures/
 # Web dependencies and build output
 node_modules/
 dist/
+website/public/assets/cat-faces.png
+website/public/assets/svg/
 
 # Secrets and environment files
 .env
