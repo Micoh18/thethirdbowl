@@ -43,6 +43,7 @@ let state = {
   password: '',
   passwordVisible: false,
   showCreateRequirements: false,
+  authNotice: null,
   session: null,
   invitations: [],
   assignments: [],
@@ -67,46 +68,58 @@ function renderCatSprite(name, className = '', alt = '', decorative = false) {
 }
 
 function currentRoute() {
-  return window.location.hash.startsWith('#/portal') ? 'portal' : 'landing'
+  return window.location.hash.startsWith('#/portal') || isPortalAuthReturn() ? 'portal' : 'landing'
 }
 
 function initialize() {
   window.addEventListener('hashchange', handleRouteChange)
   supabase.auth.onAuthStateChange(handleAuthStateChange)
 
+  applyUrlContext()
   render()
   scrollToLandingTarget()
   hydrateSession()
 }
 
 async function hydrateSession() {
+  applyUrlContext()
   const { data, error } = await supabase.auth.getSession()
   if (error) {
     setStatus('error', error.message)
   } else {
     state.session = data.session
-    setStatus(
-      'info',
-      data.session
-        ? 'Your Care Circle workspace is ready.'
-        : 'Sign in with the invited email to see what needs your attention.',
-    )
+    if (state.authNotice) {
+      setStatus(state.authNotice.tone, state.authNotice.message)
+    } else {
+      setStatus(
+        'info',
+        data.session
+          ? 'Your Care Circle workspace is ready.'
+          : 'Sign in with the invited email to see what needs your attention.',
+      )
+    }
   }
 
   if (currentRoute() === 'portal' && state.session) {
     await loadPortalData()
+    applyAuthNotice()
+    cleanAuthReturnUrl()
   } else {
     render()
+    cleanAuthReturnUrl()
   }
 
   scrollToLandingTarget()
 }
 
 async function handleAuthStateChange(_event, session) {
+  applyUrlContext()
   state.session = session
   if (session) {
     if (currentRoute() === 'portal') {
       await loadPortalData()
+      applyAuthNotice()
+      cleanAuthReturnUrl()
     } else {
       render()
     }
@@ -115,19 +128,112 @@ async function handleAuthStateChange(_event, session) {
     state.assignments = []
     state.careCoreByIncident = {}
     state.resolutionNotes = {}
-    setStatus('info', 'Signed out.')
+    if (state.authNotice) {
+      setStatus(state.authNotice.tone, state.authNotice.message)
+    } else {
+      setStatus('info', 'Signed out.')
+    }
     render()
   }
 }
 
 async function handleRouteChange() {
+  applyUrlContext()
   if (currentRoute() === 'portal' && state.session) {
     await loadPortalData()
+    applyAuthNotice()
   } else {
     render()
   }
 
   scrollToLandingTarget()
+}
+
+function applyUrlContext() {
+  const email = urlEmail()
+  if (email && isValidEmail(email) && !state.email) {
+    state.email = email
+  }
+
+  const authError = authErrorFromUrl()
+  if (authError) {
+    state.authNotice = { tone: 'error', message: authError }
+    setStatus('error', authError)
+    return
+  }
+
+  if (isConfirmedAuthReturn()) {
+    const targetEmail = email || state.email
+    state.authNotice = {
+      tone: 'success',
+      message: targetEmail
+        ? `Email confirmed for ${targetEmail}. Sign in with that email to accept private care access.`
+        : 'Email confirmed. Sign in to accept private care access.',
+    }
+    setStatus(state.authNotice.tone, state.authNotice.message)
+  }
+}
+
+function applyAuthNotice() {
+  if (state.authNotice) {
+    setStatus(state.authNotice.tone, state.authNotice.message)
+    render()
+  }
+}
+
+function isPortalAuthReturn() {
+  const params = new URLSearchParams(window.location.search)
+  return params.get('auth') === 'confirmed' || params.get('portal') === '1'
+}
+
+function isConfirmedAuthReturn() {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('auth') === 'confirmed') return true
+
+  const hashParams = currentHashParams()
+  return hashParams.get('confirmed') === '1'
+}
+
+function authErrorFromUrl() {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const errorDescription = hashParams.get('error_description')
+  if (errorDescription) return errorDescription.replace(/\+/g, ' ')
+
+  const error = hashParams.get('error')
+  return error ? `Authentication failed: ${error}` : ''
+}
+
+function urlEmail() {
+  const params = new URLSearchParams(window.location.search)
+  const searchEmail = params.get('email')
+  if (searchEmail) return searchEmail.trim().toLowerCase()
+
+  const hashEmail = currentHashParams().get('email')
+  return hashEmail ? hashEmail.trim().toLowerCase() : ''
+}
+
+function currentHashParams() {
+  const hash = window.location.hash || ''
+  const queryIndex = hash.indexOf('?')
+  if (queryIndex < 0) return new URLSearchParams()
+  return new URLSearchParams(hash.slice(queryIndex + 1))
+}
+
+function portalUrlForEmail(email, params = {}) {
+  const query = new URLSearchParams(params)
+  if (email) query.set('email', email.trim().toLowerCase())
+  const suffix = query.toString()
+  return `${window.location.origin}${window.location.pathname}${suffix ? `?${suffix}` : ''}`
+}
+
+function cleanAuthReturnUrl() {
+  if (!isPortalAuthReturn()) return
+
+  const query = new URLSearchParams()
+  const email = urlEmail() || state.email
+  if (email) query.set('email', email)
+  query.set('confirmed', '1')
+  window.history.replaceState(null, '', `${window.location.pathname}#/portal?${query.toString()}`)
 }
 
 function scrollToLandingTarget() {
@@ -1008,7 +1114,7 @@ async function signUp() {
       email: state.email,
       password: state.password,
       options: {
-        emailRedirectTo: `${window.location.origin}${window.location.pathname}#/portal`,
+        emailRedirectTo: portalUrlForEmail(state.email, { auth: 'confirmed' }),
       },
     })
 

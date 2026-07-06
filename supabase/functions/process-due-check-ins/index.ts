@@ -676,7 +676,8 @@ function invitationEmailMessage(input: {
   const escapedRelationship = escapeHtml(input.relationshipLabel)
   const escapedEmail = escapeHtml(input.invitedEmail)
   const portalUrl = input.portalUrl?.trim()
-  const escapedPortalUrl = portalUrl ? escapeHtml(portalUrl) : null
+  const portalUrlWithEmail = portalUrl ? portalUrlForInvitedEmail(portalUrl, input.invitedEmail) : null
+  const escapedPortalUrl = portalUrlWithEmail ? escapeHtml(portalUrlWithEmail) : null
   const role = input.role ? humanize(input.role) : "Trusted contact"
   const scopes = input.scopes.length ? input.scopes.map(humanize).join(", ") : "Core care"
   const expiresLine = Number.isFinite(Date.parse(input.expiresAt))
@@ -705,11 +706,20 @@ function invitationEmailMessage(input: {
     `You were invited to help ${input.catName} as ${input.relationshipLabel}.`,
     `Role: ${role}. Incident access: ${scopes}.`,
     `Sign in or create an account with ${input.invitedEmail}.`,
-    portalUrl ? `Open the Care Circle Portal: ${portalUrl}` : "Open the Care Circle Portal to accept the invitation.",
+    portalUrlWithEmail ? `Open the Care Circle Portal: ${portalUrlWithEmail}` : "Open the Care Circle Portal to accept the invitation.",
     expiresLine,
   ].join("\n")
 
   return { html, text }
+}
+
+function portalUrlForInvitedEmail(portalUrl: string, invitedEmail: string): string {
+  const [baseAndHash, existingFragment = ""] = portalUrl.split("#", 2)
+  const fragment = existingFragment || "/portal"
+  const [route, query = ""] = fragment.split("?", 2)
+  const params = new URLSearchParams(query)
+  params.set("email", invitedEmail)
+  return `${baseAndHash}#${route || "/portal"}?${params.toString()}`
 }
 
 async function markDeliveryFailed(
