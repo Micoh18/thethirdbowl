@@ -4124,7 +4124,13 @@ private fun String.humanTime(): String {
 }
 
 private fun Throwable.readableMessage(): String {
-    return message?.takeIf { it.isNotBlank() } ?: "The request failed."
+    val rawMessage = message.orEmpty()
+    return when {
+        rawMessage.contains("remove_care_circle_person", ignoreCase = true) &&
+            rawMessage.contains("schema cache", ignoreCase = true) ->
+            "Care Circle removal is not installed in Supabase yet. Run the remove-care-circle SQL, then retry."
+        else -> rawMessage.takeIf { it.isNotBlank() } ?: "The request failed."
+    }
 }
 
 private fun Throwable.authReadableMessage(): String {
