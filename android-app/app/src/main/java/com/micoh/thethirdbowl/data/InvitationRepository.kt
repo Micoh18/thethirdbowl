@@ -48,6 +48,19 @@ class InvitationRepository {
             .decodeList<InvitationRow>()
             .first()
     }
+
+    suspend fun removeCareCirclePerson(invitationId: String): RemovedCareCirclePerson {
+        return client
+            .postgrest
+            .rpc(
+                function = "remove_care_circle_person",
+                parameters = buildJsonObject {
+                    put("p_invitation_id", invitationId)
+                },
+            )
+            .decodeList<RemovedCareCirclePerson>()
+            .first()
+    }
 }
 
 @Serializable
@@ -68,4 +81,14 @@ data class InvitationRow(
     val expiresAt: String,
     @SerialName("created_at")
     val createdAt: String,
+)
+
+@Serializable
+data class RemovedCareCirclePerson(
+    @SerialName("invitation_id")
+    val invitationId: String,
+    @SerialName("cat_id")
+    val catId: String,
+    @SerialName("removed_status")
+    val removedStatus: String,
 )

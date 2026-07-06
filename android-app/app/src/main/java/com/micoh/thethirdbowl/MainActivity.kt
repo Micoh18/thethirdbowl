@@ -175,6 +175,7 @@ private fun ThirdBowlApp(
     var selectedResponderSprite by remember { mutableStateOf(CatSpriteKind.Guard) }
     var isResponderLogoSelectorOpen by remember { mutableStateOf(false) }
     var responderSpriteCustomized by remember { mutableStateOf(false) }
+    var isPeopleEditing by remember { mutableStateOf(false) }
     var invitations by remember { mutableStateOf(emptyList<InvitationRow>()) }
     val responderSpriteStore = remember(context) { ResponderSpriteStore(context.applicationContext) }
     val invitationEmailStore = remember(context) { InvitationEmailStore(context.applicationContext) }
@@ -193,7 +194,7 @@ private fun ThirdBowlApp(
 
     suspend fun loadSelectedCatState(catId: String) {
         careCore = capsuleRepository.loadCareCore(catId)
-        invitations = invitationRepository.listInvitations(catId)
+        invitations = invitationRepository.listInvitations(catId).activeCareCircleRows()
         plan = planRepository.getOrCreatePlan(catId)
         incident = incidentRepository.getActiveIncident(catId)
         auditEvents = auditRepository.listCatEvents(catId)
@@ -405,6 +406,7 @@ private fun ThirdBowlApp(
                                 selectedCatId = cat.id
                                 careCore = CareCoreDraft()
                                 invitations = emptyList()
+                                isPeopleEditing = false
                                 incident = null
                                 plan = runCatching { planRepository.getOrCreatePlan(cat.id) }.getOrNull()
                                 auditEvents = runCatching { auditRepository.listCatEvents(cat.id) }.getOrDefault(emptyList())
@@ -455,6 +457,7 @@ private fun ThirdBowlApp(
                                 loadSelectedCatState(cat.id)
                             }.onSuccess {
                                 selectedCatId = cat.id
+                                isPeopleEditing = false
                                 status = UiStatus.Success("${cat.name}'s plan is ready.")
                             }.onFailure { error ->
                                 status = UiStatus.Error(error.readableMessage())
@@ -543,6 +546,7 @@ private fun ThirdBowlApp(
                     invitationSprites = invitationSprites,
                     invitationMaskedEmails = invitationMaskedEmails,
                     isBusy = isBusy,
+                    isPeopleEditing = isPeopleEditing,
                     onInvitationEmailChange = { invitationEmail = it.trim() },
                     onRelationshipLabelChange = { relationshipLabel = it },
                     onAccessTemplateChange = { template ->
@@ -591,6 +595,33 @@ private fun ThirdBowlApp(
                                 ) + invitations
                                 auditEvents = auditRepository.listCatEvents(catId)
                                 status = UiStatus.Success("Contact added to the Care Circle.")
+                            }.onFailure { error ->
+                                status = UiStatus.Error(error.readableMessage())
+                            }
+                            isBusy = false
+                        }
+                    },
+                    onTogglePeopleEditing = {
+                        isPeopleEditing = !isPeopleEditing
+                    },
+                    onRemoveInvitation = { invitation ->
+                        val catId = selectedCatId ?: return@CircleScreen
+                        scope.launch {
+                            isBusy = true
+                            status = UiStatus.Info("Removing ${invitation.relationshipLabel} from the Care Circle...")
+                            runCatching {
+                                invitationRepository.removeCareCirclePerson(invitation.id)
+                            }.onSuccess {
+                                responderSpriteStore.remove(invitation.id)
+                                invitationEmailStore.remove(invitation.id)
+                                invitationSprites = invitationSprites - invitation.id
+                                invitationMaskedEmails = invitationMaskedEmails - invitation.id
+                                invitations = invitationRepository.listInvitations(catId).activeCareCircleRows()
+                                auditEvents = auditRepository.listCatEvents(catId)
+                                if (invitations.isEmpty()) {
+                                    isPeopleEditing = false
+                                }
+                                status = UiStatus.Success("${invitation.relationshipLabel} was removed from the Care Circle.")
                             }.onFailure { error ->
                                 status = UiStatus.Error(error.readableMessage())
                             }
@@ -646,6 +677,7 @@ private fun ThirdBowlApp(
                                 relationshipLabel = ""
                                 selectedAccessTemplate = CareCircleAccessTemplate.CoreCare
                                 invitations = emptyList()
+                                isPeopleEditing = false
                                 plan = null
                                 incident = null
                                 auditEvents = emptyList()
@@ -1481,12 +1513,15 @@ private fun CircleScreen(
     invitationSprites: Map<String, CatSpriteKind>,
     invitationMaskedEmails: Map<String, String>,
     isBusy: Boolean,
+    isPeopleEditing: Boolean,
     onInvitationEmailChange: (String) -> Unit,
     onRelationshipLabelChange: (String) -> Unit,
     onAccessTemplateChange: (CareCircleAccessTemplate) -> Unit,
     onResponderLogoSelectorToggle: () -> Unit,
     onResponderSpriteChange: (CatSpriteKind) -> Unit,
     onCreateInvitation: () -> Unit,
+    onTogglePeopleEditing: () -> Unit,
+    onRemoveInvitation: (InvitationRow) -> Unit,
 ) {
     if (selectedCat == null) {
         EmptyStateCard(
@@ -1574,20 +1609,61 @@ private fun CircleScreen(
         }
 
         SectionCard(title = "People and access", icon = IconKind.Circle) {
-            if (invitations.isEmpty()) {
+            val visibleInvitations = invitations.activeCareCircleRows()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${visibleInvitations.size} active contact(s)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (isPeopleEditing) {
+                            "Remove stale invites or revoke access for accepted responders."
+                        } else {
+                            "Use Edit only when the Care Circle needs cleanup."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (visibleInvitations.isNotEmpty()) {
+                    OutlinedButton(
+                        enabled = !isBusy,
+                        onClick = onTogglePeopleEditing,
+                    ) {
+                        LineIcon(
+                            kind = if (isPeopleEditing) IconKind.CheckCircle else IconKind.Edit,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isPeopleEditing) "Done" else "Edit")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            if (visibleInvitations.isEmpty()) {
                 EmptyInline(
                     title = "No contacts yet",
                     body = "A plan should not rely on a pending or missing person. Add someone who can genuinely respond.",
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    invitations.forEach { invitation ->
+                    visibleInvitations.forEach { invitation ->
                         InvitationCard(
                             invitation = invitation,
                             sprite = invitationSprites[invitation.id] ?: invitation.proposedScopes.responderSpriteFallback(),
                             maskedEmail = invitation.invitedEmailMasked.ifBlank {
                                 invitationMaskedEmails[invitation.id].orEmpty()
                             },
+                            isEditing = isPeopleEditing,
+                            isBusy = isBusy,
+                            onRemove = { onRemoveInvitation(invitation) },
                         )
                     }
                 }
@@ -2128,6 +2204,29 @@ private fun LineIcon(
                 drawLine(tint, p(0.34f, 0.42f), p(0.50f, 0.24f), strokeWidth, cap = StrokeCap.Round)
                 drawLine(tint, p(0.50f, 0.24f), p(0.66f, 0.42f), strokeWidth, cap = StrokeCap.Round)
                 drawCircle(tint, radius = min * 0.04f, center = p(0.50f, 0.82f))
+            }
+
+            IconKind.Edit -> {
+                drawLine(tint, p(0.28f, 0.72f), p(0.72f, 0.28f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.64f, 0.20f), p(0.80f, 0.36f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.22f, 0.78f), p(0.34f, 0.74f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.22f, 0.78f), p(0.26f, 0.66f), strokeWidth, cap = StrokeCap.Round)
+            }
+
+            IconKind.Trash -> {
+                drawLine(tint, p(0.24f, 0.30f), p(0.76f, 0.30f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.40f, 0.20f), p(0.60f, 0.20f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.45f, 0.20f), p(0.40f, 0.30f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.55f, 0.20f), p(0.60f, 0.30f), strokeWidth, cap = StrokeCap.Round)
+                drawRoundRect(
+                    color = tint,
+                    topLeft = p(0.30f, 0.34f),
+                    size = androidx.compose.ui.geometry.Size(w * 0.40f, h * 0.46f),
+                    cornerRadius = CornerRadius(min * 0.05f, min * 0.05f),
+                    style = stroke,
+                )
+                drawLine(tint, p(0.43f, 0.46f), p(0.43f, 0.68f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, p(0.57f, 0.46f), p(0.57f, 0.68f), strokeWidth, cap = StrokeCap.Round)
             }
         }
     }
@@ -2781,6 +2880,9 @@ private fun InvitationCard(
     invitation: InvitationRow,
     sprite: CatSpriteKind,
     maskedEmail: String,
+    isEditing: Boolean,
+    isBusy: Boolean,
+    onRemove: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2853,6 +2955,25 @@ private fun InvitationCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (isEditing) {
+                val accepted = invitation.status.equals("accepted", ignoreCase = true)
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isBusy,
+                    onClick = onRemove,
+                ) {
+                    LineIcon(
+                        kind = IconKind.Trash,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (accepted) "Revoke access" else "Cancel invite",
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         }
     }
 }
@@ -3665,6 +3786,13 @@ private fun coverageReadiness(
     )
 }
 
+private fun List<InvitationRow>.activeCareCircleRows(): List<InvitationRow> {
+    return filter { invitation ->
+        invitation.status.equals("pending", ignoreCase = true) ||
+            invitation.status.equals("accepted", ignoreCase = true)
+    }
+}
+
 private data class CoverageReadiness(
     val title: String,
     val body: String,
@@ -3744,6 +3872,10 @@ private class ResponderSpriteStore(context: Context) {
         preferences.edit().putString("$KeyPrefix$invitationId", sprite.name).apply()
     }
 
+    fun remove(invitationId: String) {
+        preferences.edit().remove("$KeyPrefix$invitationId").apply()
+    }
+
     private companion object {
         const val KeyPrefix = "invitation:"
     }
@@ -3762,6 +3894,10 @@ private class InvitationEmailStore(context: Context) {
     fun save(invitationId: String, maskedEmail: String) {
         if (maskedEmail.isBlank()) return
         preferences.edit().putString("$KeyPrefix$invitationId", maskedEmail).apply()
+    }
+
+    fun remove(invitationId: String) {
+        preferences.edit().remove("$KeyPrefix$invitationId").apply()
     }
 
     private companion object {
@@ -3788,6 +3924,8 @@ private enum class IconKind {
     Bowl,
     HouseSearch,
     Bell,
+    Edit,
+    Trash,
 }
 
 private enum class CareCircleAccessTemplate(
