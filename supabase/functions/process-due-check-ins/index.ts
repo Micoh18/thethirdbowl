@@ -6,8 +6,11 @@ type ProcessorResult = {
 
 type RequestBody = {
   now?: unknown
+  sendInvitation?: unknown
   sendPendingOnly?: unknown
   maxEmails?: unknown
+  invitationId?: unknown
+  invitedEmail?: unknown
 }
 
 type PendingDelivery = {
@@ -39,6 +42,18 @@ type AssignmentRow = {
   response_deadline_at: string
   step_number: number
   state: string
+}
+
+type InvitationRow = {
+  id: string
+  cat_id: string
+  invited_email_hash: string | null
+  relationship_label: string
+  status: string
+  expires_at: string
+  created_by_user_id: string
+  proposed_roles: string[] | null
+  proposed_scopes: string[] | null
 }
 
 type EmailResult = {
@@ -77,6 +92,28 @@ Deno.serve(async (request) => {
   const authMode = await authorizeRequest(request, body, supabaseUrl)
   if (!authMode.ok) {
     return jsonResponse({ error: authMode.error }, authMode.status)
+  }
+
+  if (body?.sendInvitation === true) {
+    if (!authMode.ownerUserId) {
+      return jsonResponse({ error: "missing_user_token" }, 401)
+    }
+
+    const emailSummary = await sendCareCircleInvitationEmail({
+      supabaseUrl,
+      serviceRoleKey,
+      ownerUserId: authMode.ownerUserId,
+      body,
+    })
+
+    return jsonResponse(
+      {
+        ok: true,
+        mode: "invitation_email",
+        emails: emailSummary,
+      },
+      200,
+    )
   }
 
   const parsedNow = parseNow(body)
@@ -147,7 +184,7 @@ async function authorizeRequest(
     return { ok: true, sendPendingOnly: false, ownerUserId: null }
   }
 
-  if (body?.sendPendingOnly !== true) {
+  if (body?.sendPendingOnly !== true && body?.sendInvitation !== true) {
     return { ok: false, status: 401, error: "unauthorized" }
   }
 
@@ -420,6 +457,175 @@ async function sendIncidentEmail(options: {
   }
 }
 
+async function sendCareCircleInvitationEmail(options: {
+  supabaseUrl: string
+  serviceRoleKey: string
+  ownerUserId: string
+  body: RequestBody | null
+}): Promise<EmailSummary> {
+  const resendApiKey = Deno.env.get("RESEND_API_KEY")
+  const emailFrom = Deno.env.get("EMAIL_FROM")
+
+  if (!resendApiKey || !emailFrom) {
+    return {
+      configured: false,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      results: [],
+    }
+  }
+
+  const parsed = parseInvitationEmailRequest(options.body)
+  if (!parsed.ok) {
+    return singleEmailSummary({
+      deliveryId: "care_circle_invitation",
+      status: "failed",
+      error: parsed.error,
+    })
+  }
+
+  const invitation = await singleOrNull<InvitationRow>(
+    options.supabaseUrl,
+    options.serviceRoleKey,
+    "invitations",
+    {
+      select: "id,cat_id,invited_email_hash,relationship_label,status,expires_at,created_by_user_id,proposed_roles,proposed_scopes",
+      id: `eq.${parsed.invitationId}`,
+      limit: "1",
+    },
+  )
+
+  if (!invitation || invitation.created_by_user_id !== options.ownerUserId) {
+    return singleEmailSummary({
+      deliveryId: parsed.invitationId,
+      status: "failed",
+      error: "invitation_not_found",
+    })
+  }
+
+  const storedEmailHash = postgresByteaHex(invitation.invited_email_hash)
+  if (storedEmailHash) {
+    const requestedEmailHash = await sha256Hex(parsed.invitedEmail)
+    if (storedEmailHash !== requestedEmailHash) {
+      return singleEmailSummary({
+        deliveryId: parsed.invitationId,
+        status: "failed",
+        error: "invitation_email_mismatch",
+      })
+    }
+  }
+
+  const cat = await singleOrNull<CatRow>(
+    options.supabaseUrl,
+    options.serviceRoleKey,
+    "cats",
+    {
+      select: "id,name,primary_caregiver_user_id",
+      id: `eq.${invitation.cat_id}`,
+      limit: "1",
+    },
+  )
+
+  if (!cat || cat.primary_caregiver_user_id !== options.ownerUserId) {
+    return singleEmailSummary({
+      deliveryId: parsed.invitationId,
+      status: "failed",
+      error: "invitation_not_owned",
+    })
+  }
+
+  if (invitation.status !== "pending") {
+    return singleEmailSummary({
+      deliveryId: parsed.invitationId,
+      status: "skipped",
+      error: "invitation_not_pending",
+    })
+  }
+
+  if (Number.isFinite(Date.parse(invitation.expires_at)) && Date.parse(invitation.expires_at) <= Date.now()) {
+    return singleEmailSummary({
+      deliveryId: parsed.invitationId,
+      status: "skipped",
+      error: "invitation_expired",
+    })
+  }
+
+  const message = invitationEmailMessage({
+    catName: cat.name,
+    invitedEmail: parsed.invitedEmail,
+    relationshipLabel: invitation.relationship_label,
+    role: invitation.proposed_roles?.[0] ?? null,
+    scopes: invitation.proposed_scopes ?? [],
+    expiresAt: invitation.expires_at,
+    portalUrl: Deno.env.get("CARE_PORTAL_URL") ?? null,
+  })
+
+  const providerResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `the-third-bowl-invite-${invitation.id}`,
+    },
+    body: JSON.stringify({
+      from: emailFrom,
+      to: [parsed.invitedEmail],
+      subject: `The Third Bowl: ${cat.name} invited you to their Care Circle`,
+      html: message.html,
+      text: message.text,
+    }),
+  })
+
+  const providerPayload = await providerResponse.json().catch(() => null)
+  const providerMessageId = providerPayload && typeof providerPayload === "object"
+    ? (providerPayload as { id?: unknown }).id
+    : null
+
+  if (!providerResponse.ok || typeof providerMessageId !== "string") {
+    return singleEmailSummary({
+      deliveryId: invitation.id,
+      status: "failed",
+      error: providerErrorCode(providerPayload, providerResponse.status),
+    })
+  }
+
+  return singleEmailSummary({
+    deliveryId: invitation.id,
+    status: "sent",
+    providerMessageId,
+  })
+}
+
+function parseInvitationEmailRequest(
+  body: RequestBody | null,
+):
+  | { ok: true; invitationId: string; invitedEmail: string }
+  | { ok: false; error: string } {
+  const invitationId = typeof body?.invitationId === "string" ? body.invitationId.trim() : ""
+  const invitedEmail = typeof body?.invitedEmail === "string" ? body.invitedEmail.trim().toLowerCase() : ""
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invitationId)) {
+    return { ok: false, error: "invalid_invitation_id" }
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
+    return { ok: false, error: "invalid_invited_email" }
+  }
+
+  return { ok: true, invitationId, invitedEmail }
+}
+
+function singleEmailSummary(result: EmailResult): EmailSummary {
+  return {
+    configured: true,
+    sent: result.status === "sent" ? 1 : 0,
+    failed: result.status === "failed" ? 1 : 0,
+    skipped: result.status === "skipped" ? 1 : 0,
+    results: [result],
+  }
+}
+
 function incidentEmailMessage(input: {
   catName: string
   deadline: string | null
@@ -452,6 +658,55 @@ function incidentEmailMessage(input: {
     `A continuity check-in was missed for ${input.catName}.`,
     deadlineLine,
     portalUrl ? `Open the Care Circle Portal: ${portalUrl}` : "Open the Care Circle Portal and sign in with this email to accept responsibility.",
+  ].join("\n")
+
+  return { html, text }
+}
+
+function invitationEmailMessage(input: {
+  catName: string
+  invitedEmail: string
+  relationshipLabel: string
+  role: string | null
+  scopes: string[]
+  expiresAt: string
+  portalUrl: string | null
+}): { html: string; text: string } {
+  const escapedCat = escapeHtml(input.catName)
+  const escapedRelationship = escapeHtml(input.relationshipLabel)
+  const escapedEmail = escapeHtml(input.invitedEmail)
+  const portalUrl = input.portalUrl?.trim()
+  const escapedPortalUrl = portalUrl ? escapeHtml(portalUrl) : null
+  const role = input.role ? humanize(input.role) : "Trusted contact"
+  const scopes = input.scopes.length ? input.scopes.map(humanize).join(", ") : "Core care"
+  const expiresLine = Number.isFinite(Date.parse(input.expiresAt))
+    ? `This invitation expires ${new Date(input.expiresAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC.`
+    : "This invitation expires soon."
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1f2933">
+      <h1 style="font-size:20px;margin:0 0 12px">The Third Bowl Care Circle invitation</h1>
+      <p>You were invited to help <strong>${escapedCat}</strong> as <strong>${escapedRelationship}</strong>.</p>
+      <p>Role: ${escapeHtml(role)}. Incident access: ${escapeHtml(scopes)}.</p>
+      <p>Open the Care Circle Portal and sign in or create an account with <strong>${escapedEmail}</strong>.</p>
+      ${
+        escapedPortalUrl
+          ? `<p><a href="${escapedPortalUrl}" style="display:inline-block;padding:10px 14px;border-radius:6px;background:#1f6f68;color:white;text-decoration:none">Open Care Circle Portal</a></p>`
+          : ""
+      }
+      <p>${escapeHtml(expiresLine)}</p>
+      <p style="font-size:13px;color:#52616b">A caregiver added this email to a private Care Circle. Access is only shown after email-based sign-in.</p>
+    </div>
+  `.trim()
+
+  const text = [
+    "The Third Bowl Care Circle invitation",
+    "",
+    `You were invited to help ${input.catName} as ${input.relationshipLabel}.`,
+    `Role: ${role}. Incident access: ${scopes}.`,
+    `Sign in or create an account with ${input.invitedEmail}.`,
+    portalUrl ? `Open the Care Circle Portal: ${portalUrl}` : "Open the Care Circle Portal to accept the invitation.",
+    expiresLine,
   ].join("\n")
 
   return { html, text }
@@ -586,6 +841,29 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;")
+}
+
+function humanize(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+function postgresByteaHex(value: string | null): string | null {
+  if (!value) return null
+
+  const normalized = value.trim().replace(/^\\x/i, "").toLowerCase()
+  return /^[0-9a-f]{64}$/.test(normalized) ? normalized : null
 }
 
 function truncate(value: string, maxLength: number): string {

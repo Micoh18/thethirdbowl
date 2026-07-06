@@ -566,26 +566,37 @@ private fun ThirdBowlApp(
                     onCreateInvitation = {
                         val catId = selectedCatId ?: return@CircleScreen
                         val responderSprite = selectedResponderSprite
-                        val maskedEmail = invitationEmail.maskedEmailForDisplay()
+                        val invitedEmail = invitationEmail
+                        val invitedRelationshipLabel = relationshipLabel
+                        val invitedAccessTemplate = selectedAccessTemplate
+                        val maskedEmail = invitedEmail.maskedEmailForDisplay()
                         scope.launch {
                             isBusy = true
                             status = UiStatus.Info("Preparing the invitation...")
                             runCatching {
-                                invitationRepository.createInvitation(
+                                val invitation = invitationRepository.createInvitation(
                                     catId = catId,
-                                    email = invitationEmail,
-                                    relationshipLabel = relationshipLabel,
-                                    proposedRole = selectedAccessTemplate.role,
-                                    proposedScopes = selectedAccessTemplate.scopes,
+                                    email = invitedEmail,
+                                    relationshipLabel = invitedRelationshipLabel,
+                                    proposedRole = invitedAccessTemplate.role,
+                                    proposedScopes = invitedAccessTemplate.scopes,
                                 )
-                            }.onSuccess { invitation ->
+                                val emailResult = runCatching {
+                                    invitationRepository.sendInvitationEmail(
+                                        invitationId = invitation.id,
+                                        email = invitedEmail,
+                                    )
+                                }
+                                invitation to emailResult
+                            }.onSuccess { result ->
+                                val invitation = result.first
                                 responderSpriteStore.save(invitation.id, responderSprite)
                                 invitationEmailStore.save(invitation.id, maskedEmail)
                                 invitationSprites = invitationSprites + (invitation.id to responderSprite)
                                 invitationMaskedEmails = invitationMaskedEmails + (invitation.id to maskedEmail)
                                 invitationEmail = ""
                                 relationshipLabel = ""
-                                selectedResponderSprite = selectedAccessTemplate.sprite
+                                selectedResponderSprite = invitedAccessTemplate.sprite
                                 isResponderLogoSelectorOpen = false
                                 responderSpriteCustomized = false
                                 invitations = listOf(
@@ -594,7 +605,21 @@ private fun ThirdBowlApp(
                                     ),
                                 ) + invitations
                                 auditEvents = auditRepository.listCatEvents(catId)
-                                status = UiStatus.Success("Contact added to the Care Circle.")
+                                val emailCopy = result.second.fold(
+                                    onSuccess = { emailResult ->
+                                        when {
+                                            !emailResult.configured -> " Email provider is not configured."
+                                            emailResult.sent > 0 -> " Invitation email sent."
+                                            emailResult.failed > 0 -> " Invitation email failed."
+                                            emailResult.skipped > 0 -> " Invitation email skipped."
+                                            else -> " No invitation email was sent."
+                                        }
+                                    },
+                                    onFailure = { error ->
+                                        " Invitation email failed: ${error.readableMessage()}"
+                                    },
+                                )
+                                status = UiStatus.Success("Contact added to the Care Circle.$emailCopy")
                             }.onFailure { error ->
                                 status = UiStatus.Error(error.readableMessage())
                             }

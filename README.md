@@ -8,7 +8,7 @@ The Third Bowl lets a caregiver store structured care instructions, invite trust
 
 - `android-app/`: native Android app built with Kotlin, Jetpack Compose, and Supabase.
 - `website/`: Vite web app with a public landing page and Care Circle portal.
-- `supabase/functions/process-due-check-ins/`: Supabase Edge Function that invokes the server-side missed check-in processor.
+- `supabase/functions/process-due-check-ins/`: Supabase Edge Function that invokes the server-side missed check-in processor and sends Resend-backed Care Circle emails.
 - `supabase/seed.sql`: placeholder seed file.
 
 The Supabase schema SQL is applied manually by the project owner. This repository does not run database migrations automatically.
@@ -92,9 +92,10 @@ curl -X POST "$SUPABASE_URL/functions/v1/process-due-check-ins" \
 ```
 
 The service role key must stay only in the Edge Function environment.
-The Resend API key also stays only in the Edge Function environment. Android uses its signed-in Supabase JWT only to ask the function to send pending emails for incidents belonging to the caregiver's own cats during the hidden debug flow.
+The Resend API key also stays only in the Edge Function environment. Android uses its signed-in Supabase JWT only to ask the function to send caregiver-scoped Care Circle invitation emails or pending incident emails for cats belonging to that caregiver.
 
 If the Supabase project uses explicit Data API grants, run the manual SQL at `D:\hackthekitty\sql-manual\2026-07-06-email-delivery-service-role-grants.sql` before testing email dispatch.
+For Care Circle invitation emails, also run `D:\hackthekitty\sql-manual\2026-07-06-care-circle-invitation-email-grants.sql`.
 
 ## Security Model
 
@@ -108,7 +109,7 @@ If the Supabase project uses explicit Data API grants, run the manual SQL at `D:
 
 ## Known Limitations Before Final Submission
 
-- Real incident email delivery is implemented through Resend in the Supabase Edge Function, but it still requires deployed secrets, a verified sender domain, and live end-to-end verification.
+- Real Care Circle invitation and incident email delivery is implemented through Resend in the Supabase Edge Function, but it still requires deployed secrets, a verified sender domain, and live end-to-end verification.
 - Real Android push registration and FCM delivery are not implemented in this repository.
 - The portal is still a static client-side app, not a server-managed HttpOnly cookie session.
 - `HOME_ACCESS` and `MEDICAL` Capsule sections are stored as JSON and should not be claimed as application-level encrypted.

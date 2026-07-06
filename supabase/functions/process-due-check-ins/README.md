@@ -1,6 +1,6 @@
 # process-due-check-ins
 
-Runs the server-side continuity processor. A scheduler should call this function on a short interval.
+Runs the server-side continuity processor and sends Resend-backed Care Circle emails. A scheduler should call the processor mode on a short interval.
 
 Required environment variables:
 
@@ -13,9 +13,9 @@ Required environment variables:
 
 Optional environment variables:
 
-- `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEYS`; used to verify a signed-in Android user's JWT when the function is called only to send pending incident emails.
+- `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEYS`; used to verify a signed-in Android user's JWT when the function is called to send caregiver-scoped emails.
 
-If the Supabase project requires explicit Data API grants, run `D:\hackthekitty\sql-manual\2026-07-06-email-delivery-service-role-grants.sql` before testing email dispatch.
+If the Supabase project requires explicit Data API grants, run `D:\hackthekitty\sql-manual\2026-07-06-email-delivery-service-role-grants.sql` before testing email dispatch. For Care Circle invitation emails, also run `D:\hackthekitty\sql-manual\2026-07-06-care-circle-invitation-email-grants.sql`.
 
 Request:
 
@@ -42,3 +42,4 @@ Email delivery:
 - This Edge Function sends pending incident-assignment emails through Resend.
 - On provider acceptance, it updates `notification_deliveries.delivery_status` to `provider_accepted`, stores `provider_message_id`, and marks the assignment `notified`.
 - The Android five-tap debug flow can call this function with the signed-in caregiver JWT and `{ "sendPendingOnly": true }` after the debug RPC creates an incident. In that mode, the function only sends pending deliveries for cats owned by that caregiver.
+- Android can call this function with the signed-in caregiver JWT and `{ "sendInvitation": true, "invitationId": "...", "invitedEmail": "person@example.com" }` after creating a Care Circle invitation. In that mode, the function verifies the invitation belongs to that caregiver before sending.
