@@ -1,6 +1,7 @@
 # Submission Audit
 
 Date: July 6, 2026
+Updated: July 7, 2026
 
 Scope audited:
 
@@ -9,14 +10,14 @@ Scope audited:
 - Android app source.
 - Web landing and Care Circle portal.
 - Supabase Edge Function.
-- Out-of-repository SQL migration references.
+- Committed Supabase migrations and remaining manual SQL references.
 - Build and dependency checks that could run locally.
 
 ## Executive Status
 
-The project has a coherent Android plus web prototype connected to Supabase Auth/PostgREST and a server-side missed check-in processor. It is not yet submission-complete against the full product specification because provider email still needs deployed secrets/domain verification, push delivery, complete reproducible backend setup, final Android device verification, and security scan artifacts are still missing or unverified.
+The project has a coherent Android plus web prototype connected to Supabase Auth/PostgREST and a server-side missed check-in processor. It is not yet submission-complete against the full product specification because push delivery, clean backend replay proof, final end-to-end proof artifacts, and security scan artifacts are still missing or unverified.
 
-The strongest current submission angle is a smaller, truthful release: Android caregiver flow, scoped Care Circle portal, server-side incident state, temporary grants, audit trail, and incident email only after a live Resend receipt is shown. Do not claim real push delivery, application-level encryption, server-managed web sessions, or provider-confirmed email delivery until those are completed and shown.
+The strongest current submission angle is a smaller, truthful release: Android caregiver flow, scoped Care Circle portal, server-side incident state, temporary grants, audit trail, Resend email after live receipt proof, and server-managed field-level encryption after the Capsule encryption migration, DB key, and backfill are verified. Do not claim real push delivery, end-to-end encryption, server-managed web sessions, or a real timer from the debug trigger.
 
 ## Evidence Collected
 
@@ -44,19 +45,22 @@ The strongest current submission angle is a smaller, truthful release: Android c
 - Added this submission audit document.
 - Prepared manual SQL outside the repository at `D:\hackthekitty\sql-manual\2026-07-06-remove-demo-developer-rpcs.sql` to revoke/drop historical demo/developer RPCs before final submission.
 - Prepared manual SQL outside the repository at `D:\hackthekitty\sql-manual\2026-07-06-invitation-email-mask.sql` to store and return `invited_email_masked` for new invitations.
+- Added committed Supabase migrations under `supabase/migrations/`, including baseline schema, manual schema/RPC patches, email grants, Care Circle removal, and Capsule sensitive field encryption.
+- Updated Android Capsule persistence to use authorization-checked RPCs instead of direct `capsule_sections` reads/writes.
+- Added `D:\hackthekitty\sql-manual\2026-07-07-capsule-encryption-key.sql` as the manual DB key/backfill template.
 
 ## P0 Submission Blockers
 
 1. Real email delivery must be deployed with Resend secrets, a verified sender domain, and a live receipt, or the final demo must not claim provider-delivered invitation/escalation email.
 2. Real Android push reminders are not present in repository code.
-3. The final backend schema is not reproducible from committed migrations because SQL is maintained out of repo by project policy.
+3. The final backend schema is now represented by committed migrations, but a clean replay on a fresh Supabase database has not been recorded.
 4. A full end-to-end run has not been captured: caregiver, invite, exact-email portal acceptance, check-in, missed cycle, incident acceptance, scoped access, resolution, revocation, and audit.
 5. Aikido or equivalent security scan artifact is missing.
 
 ## P1 Risks
 
 - The portal is static and cannot provide HttpOnly server-managed sessions.
-- `HOME_ACCESS` and `MEDICAL` data are stored as JSON, not application-level ciphertext.
+- `HOME_ACCESS` and `MEDICAL` field-level encryption depends on `app.capsule_encryption_key` being configured and existing rows being backfilled.
 - The due-check-in mechanism is a processor/scheduler model rather than a Temporal durable workflow.
 - The Android app now intentionally keeps a hidden debug trigger; final submission narration must not present that path as real timer proof.
 - The Android app embeds publishable Supabase configuration in `BuildConfig`, which is acceptable for public client keys but should be documented as non-secret.
@@ -68,6 +72,7 @@ Claim only what can be shown truthfully:
 - Android-authenticated caregiver creates a cat.
 - Care Capsule data persists in Supabase.
 - Care Circle invitation records are scoped by role and exact email.
+- Sensitive `HOME_ACCESS` and `MEDICAL` Capsule sections use server-managed field-level encryption after key/backfill proof.
 - Portal requires authentication with the invited email.
 - Incident acceptance grants only authorized Capsule sections.
 - Resolution revokes incident access.
@@ -77,15 +82,15 @@ Avoid claiming:
 
 - Provider-confirmed email delivery before Resend is configured and a live receipt is shown.
 - Android push notification delivery.
-- Application-level encryption.
+- End-to-end encryption or client-side key ownership.
 - Server-managed web sessions.
 - Temporal workflow execution.
 - Any simulated or manually fast-forwarded incident as if it were a real missed timer.
 
 ## Next Best Actions
 
-1. Manually run `D:\hackthekitty\sql-manual\2026-07-06-invitation-email-mask.sql` so new invites show masked emails in People and access.
-2. Verify live Supabase flows with two real email accounts.
-3. Deploy the Edge Function with Resend secrets and verify one live incident email receipt.
-4. Record a short final proof video using only real state transitions.
+1. Configure `app.capsule_encryption_key`, run the Capsule backfill template, and verify ciphertext for `HOME_ACCESS` and `MEDICAL`.
+2. Replay `supabase/migrations/` against a clean Supabase database and record the result.
+3. Verify live Supabase flows with two real email accounts.
+4. Record a short final proof video using real state transitions, clearly labelling the five-tap debug trigger as rehearsal-only when used.
 5. Export security scan results and add them to the submission package.
