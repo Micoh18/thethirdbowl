@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <a href="https://thethirdbowl.space">https://thethirdbowl.space</a>
+</p>
+
+<p align="center">
   <img alt="Android" src="https://img.shields.io/badge/Android-caregiver%20app-3DDC84?style=for-the-badge&amp;logo=android&amp;logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?style=for-the-badge&amp;logo=kotlin&amp;logoColor=white" />
   <img alt="Jetpack Compose" src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=for-the-badge&amp;logo=jetpackcompose&amp;logoColor=white" />
@@ -280,7 +284,3 @@ These are the current limits to keep the product description accurate:
 - Capsule field encryption requires `app.capsule_encryption_key` to be configured, plus backfill for any sensitive rows created before the encryption migration.
 - The missed-check-in path is a processor/scheduler model, not a Temporal workflow.
 - A clean hosted or local Supabase replay should be run after environment or schema changes.
-
-## One-Line Pitch
-
-The Third Bowl is a private continuity handoff system for cats: it turns one caregiver's invisible routine into scoped, auditable, responder-ready care when that person cannot come home.
