@@ -55,10 +55,8 @@ The product is intentionally narrow: one emotionally clear problem, a real workf
 <p align="center">
   <img src="./readme-assets/android-home.png" width="18%" alt="Android home continuity screen" />
   <img src="./readme-assets/android-capsule-overview.png" width="18%" alt="Android Capsule overview" />
-  <img src="./readme-assets/android-capsule-editor.png" width="18%" alt="Android Capsule editor" />
   <img src="./readme-assets/android-care-circle-invite.png" width="18%" alt="Android Care Circle invite screen" />
   <img src="./readme-assets/android-care-circle-status.png" width="18%" alt="Android Care Circle status screen" />
-  <img src="./readme-assets/android-audit-trail.png" width="18%" alt="Android audit trail screen" />
 </p>
 
 <p align="center">
