@@ -363,7 +363,6 @@ function renderProofStrip() {
       ${renderProofItem('Private by default', 'Care details stay behind authentication and authorization.', 'neutral')}
       ${renderProofItem('Scoped release', 'Trusted people see only the sections they were granted.', 'key')}
       ${renderProofItem('Human handoff', 'A notification is not enough; someone must accept responsibility.', 'guard')}
-      <img class="divider-doodles" src="/assets/divider-doodles.png" alt="" aria-hidden="true" />
     </section>
   `
 }

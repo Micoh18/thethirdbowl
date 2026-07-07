@@ -337,12 +337,6 @@ img {
   color: var(--muted);
 }
 
-.divider-doodles {
-  width: 100%;
-  max-height: 76px;
-  object-fit: contain;
-}
-
 .section-band {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -1319,10 +1313,6 @@ img {
 
   .proof-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .divider-doodles {
-    grid-column: 1 / -1;
   }
 
   .knowledge-grid,
