@@ -1618,7 +1618,7 @@ private fun CircleScreen(
                 value = invitationEmail,
                 onValueChange = onInvitationEmailChange,
                 label = "Trusted person's email",
-                placeholder = "sofia@example.com",
+                placeholder = "esther@example.com",
                 supportingText = "The invitation is tied to this exact email.",
                 icon = IconKind.User,
                 minLines = 1,
