@@ -1,39 +1,197 @@
-# The Third Bowl
+<p align="center">
+  <img src="./website/public/assets/png/neutral.png" width="112" alt="The Third Bowl neutral cat logo" />
+</p>
 
-Emergency continuity for cats whose care lives in one person's head.
+<h1 align="center">The Third Bowl</h1>
 
-The Third Bowl lets a caregiver store structured care instructions, invite trusted people into a per-cat Care Circle, run a recurring availability check-in, and release only the needed care details during an incident.
+<p align="center">
+  <strong>Emergency continuity for cats whose care lives in one person's head.</strong>
+</p>
+
+<p align="center">
+  Food is the first bowl. Water is the second. Continuity is the third.
+</p>
+
+<p align="center">
+  <img alt="Android" src="https://img.shields.io/badge/Android-caregiver%20app-3DDC84?style=for-the-badge&amp;logo=android&amp;logoColor=white" />
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?style=for-the-badge&amp;logo=kotlin&amp;logoColor=white" />
+  <img alt="Jetpack Compose" src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=for-the-badge&amp;logo=jetpackcompose&amp;logoColor=white" />
+  <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Auth%20%2B%20Postgres-3FCF8E?style=for-the-badge&amp;logo=supabase&amp;logoColor=white" />
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-web%20portal-646CFF?style=for-the-badge&amp;logo=vite&amp;logoColor=white" />
+  <img alt="Deno" src="https://img.shields.io/badge/Deno-edge%20function-000000?style=for-the-badge&amp;logo=deno&amp;logoColor=white" />
+  <img alt="Vercel" src="https://img.shields.io/badge/Vercel-static%20deploy-000000?style=for-the-badge&amp;logo=vercel&amp;logoColor=white" />
+  <img alt="Resend" src="https://img.shields.io/badge/Resend-email%20handoff-000000?style=for-the-badge&amp;logo=resend&amp;logoColor=white" />
+</p>
+
+<p align="center">
+  <img src="./website/public/assets/hero-doodle.png" width="720" alt="Hand drawn cats gathered around a bowl" />
+</p>
+
+## Why This Exists
+
+Cats look independent until the one person who knows the routine cannot come home.
+
+The hard part is not only feeding. It is knowing which bowl matters, where the cat hides, who may enter the home, which medicine must not be guessed, and which trusted human is actually responsible right now. The Third Bowl turns that fragile private knowledge into a controlled handoff system:
+
+- A caregiver builds a structured Care Capsule for each cat.
+- Trusted people join a per-cat Care Circle through the exact invited email.
+- A recurring continuity ritual asks the caregiver to confirm availability.
+- When a check-in is missed, backend state creates an incident and assigns responders.
+- Responders see only the authorized Capsule sections, accept responsibility, confirm the cat was reached, and resolve the handoff.
+
+This is a hackathon project with a deliberately narrow wedge: one emotionally clear problem, a real workflow, and a trust model that is visible in the product.
+
+## Product Surfaces
+
+<p align="center">
+  <img src="./readme-assets/web-landing.png" width="55%" alt="The Third Bowl public landing page" />
+  <img src="./readme-assets/web-portal.png" width="39%" alt="Care Circle portal sign in screen" />
+</p>
+
+<p align="center">
+  <em>Public landing for the story. Private portal for invited responders.</em>
+</p>
+
+<p align="center">
+  <img src="./readme-assets/android-home.png" width="18%" alt="Android home continuity screen" />
+  <img src="./readme-assets/android-capsule-overview.png" width="18%" alt="Android Capsule overview" />
+  <img src="./readme-assets/android-capsule-editor.png" width="18%" alt="Android Capsule editor" />
+  <img src="./readme-assets/android-care-circle-invite.png" width="18%" alt="Android Care Circle invite screen" />
+  <img src="./readme-assets/android-care-circle-status.png" width="18%" alt="Android Care Circle status screen" />
+  <img src="./readme-assets/android-audit-trail.png" width="18%" alt="Android audit trail screen" />
+</p>
+
+<p align="center">
+  <em>Native Android caregiver workflow: readiness, Capsule, Care Circle, audit, and continuity state.</em>
+</p>
+
+## What Judges Should Notice
+
+| Differentiator | Why it matters |
+| --- | --- |
+| Specific problem | The app is not generic pet care. It solves a high-stress knowledge transfer failure for cats. |
+| Real trust boundary | Private care details are not shipped as a loose link. Access starts with authentication and invited email ownership. |
+| Scoped disclosure | A neighbor, guardian, or medical helper can receive different sections of the Capsule. |
+| Human responsibility | The flow does not stop at notification. A responder accepts responsibility, confirms the cat was reached, and resolves the incident. |
+| Audit trail | Sensitive transitions are inspectable: Capsule changes, Circle changes, plan state, incidents, and handoffs. |
+| Polished identity | The cat sprite system maps product states to recognizable emotional cues without making safety feel fake. |
+
+## Demo Script
+
+1. Sign in on Android with Supabase Auth.
+2. Create a cat profile.
+3. Fill the Care Capsule: core care, home access, and medical context.
+4. Invite a trusted person with a relationship label, role, and access scope.
+5. The trusted person opens the web portal and signs in with the exact invited email.
+6. The caregiver arms the continuity ritual after readiness checks pass.
+7. The caregiver completes a server-confirmed check-in.
+8. A due-check-in processor can create a missed-check-in incident from backend deadlines.
+9. The responder accepts responsibility in the portal.
+10. The portal reveals only authorized Capsule sections.
+11. The responder confirms the cat was reached and resolves the handoff.
+12. Android shows current incident state and audit history from Supabase.
+
+For final presentation, narrate the debug five-tap missed-check-in trigger as a rehearsal control only. It exists to demonstrate the handoff path quickly; it is not the real timer proof.
+
+<p align="center">
+  <img src="./readme-assets/android-debug-handoff.png" width="220" alt="Android rehearsal-only handoff trigger screen" />
+</p>
+
+## Architecture
+
+```mermaid
+flowchart LR
+  caregiver["Android caregiver app<br/>Kotlin + Jetpack Compose"]
+  portal["Care Circle portal<br/>Vite + Supabase JS"]
+  supabase["Supabase<br/>Auth + Postgres + RLS/RPC"]
+  edge["Supabase Edge Function<br/>Deno service role boundary"]
+  resend["Resend<br/>invitation + incident email"]
+  vercel["Vercel<br/>static web deploy"]
+
+  caregiver -->|"Supabase Auth JWT<br/>cat, Capsule, Circle, Ritual"| supabase
+  portal -->|"Exact invited email<br/>invitation + assignment RPCs"| supabase
+  supabase -->|"due plans + notification deliveries"| edge
+  edge -->|"provider accepted email"| resend
+  vercel --> portal
+  supabase -->|"scoped incident Capsule sections"| portal
+```
+
+## Core Mechanics
+
+| Mechanic | Implemented path |
+| --- | --- |
+| Cat profile | Android uses Supabase Auth and the `create_cat` RPC. |
+| Care Capsule | Android uses Capsule RPCs; `HOME_ACCESS` and `MEDICAL` are stored as encrypted ciphertext and returned only through authorization-checked reads. |
+| Care Circle | Android creates and lists invitation records with role and proposed scopes. |
+| Exact-email portal | Web portal uses Supabase Auth and `list_my_invitation_records` for the signed-in user. |
+| Continuity ritual | Android arms plans with `activate_continuity_plan` and completes check-ins with `complete_continuity_check_in`. |
+| Missed-check-in incident | Edge Function calls `process_due_check_ins` and sends pending assignment emails when configured. |
+| Responder handoff | Portal accepts assignments, records cat reached, resolves the handoff, and loads scoped Capsule sections. |
+| Audit | Android loads `list_cat_audit_events` so care-sensitive actions stay visible. |
+
+## Trust Model
+
+The product is designed around minimum necessary disclosure.
+
+- Android and browser clients use only the Supabase URL and publishable key.
+- Service-role credentials stay inside the Supabase Edge Function environment.
+- Portal sessions are not persisted to `localStorage`.
+- The web entrypoint includes a restrictive CSP and referrer policy.
+- Invitations are bound to normalized invited email ownership.
+- Incident access is mediated by responder assignments and temporary section grants.
+- Sensitive Capsule sections are encrypted at rest with server-managed field-level encryption.
+- Sensitive responder actions are explicit: accept responsibility, confirm cat reached, resolve handoff.
+
+This is not a veterinary diagnosis tool, not a replacement for emergency services, and not a promise that a notification alone protects an animal.
+
+## Visual System
+
+The sprites are part of the product language, not decoration. They identify states such as neutral profile, pending ritual, access, medical context, guard handoff, warning, and completion.
+
+<p align="center">
+  <img src="./website/public/assets/png/neutral.png" width="64" alt="Neutral cat sprite" />
+  <img src="./website/public/assets/png/happy.png" width="64" alt="Happy cat sprite" />
+  <img src="./website/public/assets/png/guard.png" width="64" alt="Guard cat sprite" />
+  <img src="./website/public/assets/png/key.png" width="64" alt="Key cat sprite" />
+  <img src="./website/public/assets/png/medic.png" width="64" alt="Medic cat sprite" />
+  <img src="./website/public/assets/png/alert.png" width="64" alt="Alert cat sprite" />
+  <img src="./website/public/assets/png/sleepy.png" width="64" alt="Sleepy cat sprite" />
+  <img src="./website/public/assets/png/dizzy.png" width="64" alt="Dizzy cat sprite" />
+  <img src="./website/public/assets/png/cute.png" width="64" alt="Cute cat sprite" />
+</p>
+
+## Tech Stack
+
+| Layer | Stack |
+| --- | --- |
+| Android | Kotlin, Jetpack Compose Material 3, Android Gradle Plugin, Supabase Kotlin, Ktor Android client |
+| Web | Vite, vanilla JavaScript, Supabase JS, static CSP, generated favicon set |
+| Backend | Supabase Auth, Postgres, RPC functions, RLS-backed tables, Edge Functions on Deno |
+| Email | Resend-backed invitation and incident handoff emails |
+| Deploy | Vercel static build from `website/`, Supabase Edge Function for server-side processing |
+| Design assets | Hand-drawn cat sprites and hero art committed under `website/public/assets/` |
 
 ## Repository Layout
 
-- `android-app/`: native Android app built with Kotlin, Jetpack Compose, and Supabase.
-- `website/`: Vite web app with a public landing page and Care Circle portal.
-- `supabase/functions/process-due-check-ins/`: Supabase Edge Function that invokes the server-side missed check-in processor and sends Resend-backed Care Circle emails.
-- `supabase/seed.sql`: placeholder seed file.
+```text
+TheThirdBowl/
+  android-app/                              Native Android caregiver app
+  website/                                  Vite landing page and Care Circle portal
+  website/public/assets/                    Logo, favicon source, hero art, cat sprites
+  readme-assets/                            README screenshots
+  supabase/functions/process-due-check-ins/ Edge Function for due checks and email dispatch
+  supabase/seed.sql                         Placeholder seed file
+  SUBMISSION_AUDIT.md                       Submission readiness audit and remaining proof items
+```
 
-The Supabase schema SQL is applied manually by the project owner. This repository does not run database migrations automatically.
+The Supabase schema SQL is managed by the project owner. Keep the final submission package aligned with `SUBMISSION_AUDIT.md` before judging.
 
-## Current Release Path
-
-The implemented product path is:
-
-1. A caregiver signs in on Android with Supabase Auth.
-2. The caregiver creates a cat profile.
-3. The caregiver edits Capsule sections for core care, home access, and medical context.
-4. The caregiver invites a Care Circle contact with a role and scoped access template.
-5. The invited contact signs into the web portal with the exact invited email and accepts.
-6. The caregiver arms a short continuity ritual after minimum readiness checks.
-7. The caregiver completes server-confirmed check-ins from Android.
-8. A server-side processor can create missed check-in incidents from overdue plans.
-9. The portal lets assigned responders accept responsibility, confirm the cat was reached, view authorized Capsule sections, and resolve the handoff.
-10. Android and the portal show audit and incident state from Supabase.
-
-## Setup
+## Local Setup
 
 ### Prerequisites
 
-- Android Studio with its embedded JBR/JDK 21 selected as the Gradle JDK.
-- Android SDK for API 36.
+- Android Studio with embedded JBR/JDK 21 selected as the Gradle JDK.
+- Android SDK API 36.
 - Node.js 20 or newer.
 - A Supabase project provisioned with the required schema and RPCs.
 
@@ -46,24 +204,16 @@ npm run dev
 npm run build
 ```
 
-### Vercel
-
-This repository can be imported directly as a Vercel Git project. The root `vercel.json` builds the static portal from `website/`:
-
-- Install command: `npm install --prefix website`
-- Build command: `npm run build --prefix website`
-- Output directory: `website/dist`
-
-After deploying, attach the custom domain and set `CARE_PORTAL_URL` in the Supabase Edge Function to the final portal URL, for example `https://thethirdbowl.space/#/portal`.
+On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm.ps1`.
 
 ### Android
 
 Open `android-app/` in Android Studio, then set:
 
-- Gradle JDK: Android Studio embedded JBR/JDK, not the VS Code RedHat Java runtime.
-- Run target: emulator or Android device with USB debugging enabled.
+- Gradle JDK: Android Studio embedded JBR/JDK.
+- Run target: Android emulator or physical device with USB debugging.
 
-Command-line build, when the local JVM is configured correctly:
+Command-line checks:
 
 ```bash
 cd android-app
@@ -71,18 +221,59 @@ cd android-app
 ./gradlew :app:testDebugUnitTest
 ```
 
-### Missed Check-In Processor
+### Vercel
 
-The Edge Function requires:
+The root `vercel.json` builds the static portal from `website/`:
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `CHECK_IN_PROCESSOR_SECRET`
-- `RESEND_API_KEY`
-- `EMAIL_FROM`, using a verified Resend sender domain, for example `The Third Bowl <noreply@alerts.thethirdbowl.space>`
-- `CARE_PORTAL_URL`, pointing to the deployed Vercel portal route, for example `https://your-vercel-app.vercel.app/#/portal`
+- Install command: `npm install --prefix website`
+- Build command: `npm run build --prefix website`
+- Output directory: `website/dist`
 
-Example request:
+After deploying, set `CARE_PORTAL_URL` in the Supabase Edge Function to the final portal route, for example:
+
+```text
+https://your-vercel-app.vercel.app/#/portal
+```
+
+### Supabase
+
+Deploy the Edge Function after linking the Supabase project:
+
+```bash
+supabase link --project-ref <project-ref>
+supabase functions deploy process-due-check-ins
+```
+
+Capsule field encryption requires a DB setting before writing or backfilling sensitive sections:
+
+```sql
+alter database postgres
+  set "app.capsule_encryption_key" = 'REPLACE_WITH_LONG_RANDOM_SECRET';
+```
+
+Use `D:\hackthekitty\sql-manual\2026-07-07-capsule-encryption-key.sql` as the manual setup/backfill template.
+
+### Supabase Edge Function
+
+Required environment variables:
+
+```text
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+CHECK_IN_PROCESSOR_SECRET
+RESEND_API_KEY
+EMAIL_FROM
+CARE_PORTAL_URL
+```
+
+Optional for signed-in Android-triggered email dispatch:
+
+```text
+SUPABASE_ANON_KEY
+SUPABASE_PUBLISHABLE_KEYS
+```
+
+Processor request:
 
 ```bash
 curl -X POST "$SUPABASE_URL/functions/v1/process-due-check-ins" \
@@ -91,39 +282,35 @@ curl -X POST "$SUPABASE_URL/functions/v1/process-due-check-ins" \
   -d "{}"
 ```
 
-The service role key must stay only in the Edge Function environment.
-The Resend API key also stays only in the Edge Function environment. Android uses its signed-in Supabase JWT only to ask the function to send caregiver-scoped Care Circle invitation emails or pending incident emails for cats belonging to that caregiver.
+Email delivery and invitation verification grants are included in the committed migrations.
 
-If the Supabase project uses explicit Data API grants, run the manual SQL at `D:\hackthekitty\sql-manual\2026-07-06-email-delivery-service-role-grants.sql` before testing email dispatch.
-For Care Circle invitation emails, also run `D:\hackthekitty\sql-manual\2026-07-06-care-circle-invitation-email-grants.sql`.
+## Verification Evidence
 
-## Security Model
+Current local evidence recorded for the submission:
 
-- Android and browser clients use only the Supabase URL and publishable key.
-- Sensitive actions go through Supabase RPCs and RLS-backed tables.
-- Invitations are bound to the normalized invited email.
-- Incident Capsule access is scoped through temporary grants.
-- The portal does not persist Supabase sessions to `localStorage`.
-- The static site includes a restrictive CSP meta policy.
-- Android Settings includes a hidden five-tap debug handoff trigger for rehearsal only. It must not be presented as proof of the real missed-check-in timer.
+| Area | Evidence |
+| --- | --- |
+| Web production build | `npm run build` passed in `website/`. |
+| Web dependency audit | `npm audit --omit=dev` reported 0 vulnerabilities. |
+| Android build | `.\gradlew.bat :app:assembleDebug` passed. |
+| Android unit tests | `.\gradlew.bat :app:testDebugUnitTest` passed. |
+| Android device run | App was run on a physical Android device through Android Studio. |
+| Security posture | No service-role literal was found in client code during the audit. |
 
-## Known Limitations Before Final Submission
+See `SUBMISSION_AUDIT.md` for the dated audit, blockers, and proof gaps.
 
-- Real Care Circle invitation and incident email delivery is implemented through Resend in the Supabase Edge Function, but it still requires deployed secrets, a verified sender domain, and live end-to-end verification.
-- Real Android push registration and FCM delivery are not implemented in this repository.
-- The portal is still a static client-side app, not a server-managed HttpOnly cookie session.
-- `HOME_ACCESS` and `MEDICAL` Capsule sections are stored as JSON and should not be claimed as application-level encrypted.
-- The server-side timer is implemented through a due-check-in processor and scheduler pattern, not a dedicated Temporal workflow.
-- The Supabase schema SQL is maintained outside the repository by project policy, so the final ZIP/submission must account for database reproducibility.
-- Historical invitations may not show an email mask unless the new manual SQL has been applied and the invite was created after that point.
-- Aikido/security scan artifacts and a complete manual end-to-end proof video are still required.
+## Current Boundaries
 
-## Verification Status
+The README should help the project win by being clear, not by overclaiming. These are the current limits to keep honest in a final submission:
 
-Verified on July 6, 2026:
+- Provider-delivered emails require deployed Resend secrets, verified sender domain, and live receipt proof.
+- Android push notification delivery is not implemented in this repository.
+- The web portal is a static client-side app, not an HttpOnly server-session app.
+- Capsule field encryption requires `app.capsule_encryption_key` to be configured, plus backfill for any sensitive rows created before the encryption migration.
+- The missed-check-in path is a processor/scheduler model, not a Temporal workflow.
+- A clean hosted or local Supabase replay still needs to be run and recorded as final proof.
+- The Android five-tap handoff trigger is a rehearsal-only control for demos.
 
-- `website`: `npm run build` passes.
-- `website`: `npm audit --omit=dev` reports 0 vulnerabilities.
-- `android-app`: `.\gradlew.bat :app:assembleDebug` passes.
-- `android-app`: `.\gradlew.bat :app:testDebugUnitTest` passes.
-- Android has been run on a physical device through Android Studio.
+## One-Line Pitch
+
+The Third Bowl is a private continuity handoff system for cats: it turns one caregiver's invisible routine into scoped, auditable, responder-ready care when that person cannot come home.
