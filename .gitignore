@@ -3,7 +3,6 @@
 /plan-*.md
 /instrucciones-llm.md
 /supabase/.temp/
-/supabase/migrations/
 
 # IDE and local machine state
 .idea/

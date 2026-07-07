@@ -15,7 +15,7 @@ Optional environment variables:
 
 - `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEYS`; used to verify a signed-in Android user's JWT when the function is called to send caregiver-scoped emails.
 
-If the Supabase project requires explicit Data API grants, run `D:\hackthekitty\sql-manual\2026-07-06-email-delivery-service-role-grants.sql` before testing email dispatch. For Care Circle invitation emails, also run `D:\hackthekitty\sql-manual\2026-07-06-care-circle-invitation-email-grants.sql`.
+If the Supabase project requires explicit Data API grants, apply the committed migrations in `supabase/migrations/`; the email delivery and Care Circle invitation grants are included there.
 
 Request:
 
