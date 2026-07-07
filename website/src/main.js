@@ -68,7 +68,9 @@ function renderCatSprite(name, className = '', alt = '', decorative = false) {
 }
 
 function currentRoute() {
-  return window.location.hash.startsWith('#/portal') || isPortalAuthReturn() ? 'portal' : 'landing'
+  if (window.location.hash.startsWith('#/portal') || isPortalAuthReturn()) return 'portal'
+  if (isVerifiedRoute()) return 'verified'
+  return 'landing'
 }
 
 function initialize() {
@@ -162,7 +164,7 @@ function applyUrlContext() {
     return
   }
 
-  if (isConfirmedAuthReturn()) {
+  if (isVerifiedRoute()) {
     const targetEmail = email || state.email
     state.authNotice = {
       tone: 'success',
@@ -183,12 +185,13 @@ function applyAuthNotice() {
 
 function isPortalAuthReturn() {
   const params = new URLSearchParams(window.location.search)
-  return params.get('auth') === 'confirmed' || params.get('portal') === '1'
+  return params.get('portal') === '1'
 }
 
-function isConfirmedAuthReturn() {
+function isVerifiedRoute() {
   const params = new URLSearchParams(window.location.search)
-  if (params.get('auth') === 'confirmed') return true
+  if (params.get('verified') === '1' || params.get('auth') === 'confirmed') return true
+  if (window.location.hash.startsWith('#/verified')) return true
 
   const hashParams = currentHashParams()
   return hashParams.get('confirmed') === '1'
@@ -226,6 +229,17 @@ function portalUrlForEmail(email, params = {}) {
   return `${window.location.origin}${window.location.pathname}${suffix ? `?${suffix}` : ''}`
 }
 
+function verifiedUrlForEmail(email) {
+  return portalUrlForEmail(email, { verified: '1' })
+}
+
+function portalHashForEmail(email) {
+  const query = new URLSearchParams()
+  if (email) query.set('email', email.trim().toLowerCase())
+  const suffix = query.toString()
+  return `#/portal${suffix ? `?${suffix}` : ''}`
+}
+
 function cleanAuthReturnUrl() {
   if (!isPortalAuthReturn()) return
 
@@ -237,7 +251,7 @@ function cleanAuthReturnUrl() {
 }
 
 function scrollToLandingTarget() {
-  if (currentRoute() === 'portal') return
+  if (currentRoute() !== 'landing') return
 
   const id = window.location.hash.slice(1)
   if (!id || id.startsWith('/')) return
@@ -253,7 +267,36 @@ function render() {
     return
   }
 
+  if (currentRoute() === 'verified') {
+    renderVerified()
+    return
+  }
+
   renderLanding()
+}
+
+function renderVerified() {
+  const email = urlEmail() || state.email || state.session?.user?.email || ''
+  const portalHref = portalHashForEmail(email)
+
+  app.innerHTML = `
+    <main class="verified-shell">
+      <section class="verified-card">
+        ${renderCatSprite('neutral', 'sprite-badge verified-sprite', 'The Third Bowl verified email cat')}
+        <p class="eyebrow">Email verified</p>
+        <h1>Your The Third Bowl account is ready</h1>
+        <p>
+          ${email
+            ? `The email <strong>${escapeHtml(email)}</strong> is confirmed. Sign in with it to accept private Care Circle access.`
+            : 'Your email is confirmed. Sign in to accept private Care Circle access.'}
+        </p>
+        <div class="verified-actions">
+          <a class="button primary" href="${escapeAttribute(portalHref)}">Open Care Circle Portal</a>
+          <a class="button secondary" href="#">Public landing</a>
+        </div>
+      </section>
+    </main>
+  `
 }
 
 function renderLanding() {
@@ -1127,7 +1170,7 @@ async function signUp() {
       email: state.email,
       password: state.password,
       options: {
-        emailRedirectTo: portalUrlForEmail(state.email, { auth: 'confirmed' }),
+        emailRedirectTo: verifiedUrlForEmail(state.email),
       },
     })
 

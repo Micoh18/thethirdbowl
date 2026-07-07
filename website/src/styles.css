@@ -595,6 +595,52 @@ img {
   font-weight: 800;
 }
 
+.verified-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px 16px;
+}
+
+.verified-card {
+  display: grid;
+  gap: 16px;
+  width: min(520px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.verified-card h1 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1;
+}
+
+.verified-card p {
+  color: var(--muted);
+}
+
+.verified-sprite {
+  width: 92px;
+  height: 92px;
+  justify-self: center;
+  border-radius: 999px;
+  padding: 8px;
+  background: var(--green-soft);
+}
+
+.verified-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .portal-shell {
   width: min(430px, 100%);
   margin: 0 auto;

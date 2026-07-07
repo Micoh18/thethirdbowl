@@ -79,7 +79,7 @@ The Edge Function requires:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `CHECK_IN_PROCESSOR_SECRET`
 - `RESEND_API_KEY`
-- `EMAIL_FROM`, using a verified Resend sender domain
+- `EMAIL_FROM`, using a verified Resend sender domain, for example `The Third Bowl <noreply@alerts.thethirdbowl.space>`
 - `CARE_PORTAL_URL`, pointing to the deployed Vercel portal route, for example `https://your-vercel-app.vercel.app/#/portal`
 
 Example request:
