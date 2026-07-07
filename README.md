@@ -158,7 +158,6 @@ TheThirdBowl/
   readme-assets/                            README screenshots
   supabase/functions/process-due-check-ins/ Edge Function for due checks and email dispatch
   supabase/seed.sql                         Placeholder seed file
-  SUBMISSION_AUDIT.md                       Submission readiness audit and remaining proof items
 ```
 
 The Supabase schema SQL is managed by the project owner. Keep the deployed project aligned with the schema and environment requirements before running production-like flows.
