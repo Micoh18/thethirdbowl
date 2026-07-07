@@ -39,7 +39,7 @@ The hard part is not only feeding. It is knowing which bowl matters, where the c
 - When a check-in is missed, backend state creates an incident and assigns responders.
 - Responders see only the authorized Capsule sections, accept responsibility, confirm the cat was reached, and resolve the handoff.
 
-This is a hackathon project with a deliberately narrow wedge: one emotionally clear problem, a real workflow, and a trust model that is visible in the product.
+The product is intentionally narrow: one emotionally clear problem, a real workflow, and a trust model that is visible in the product.
 
 ## Product Surfaces
 
@@ -65,7 +65,7 @@ This is a hackathon project with a deliberately narrow wedge: one emotionally cl
   <em>Native Android caregiver workflow: readiness, Capsule, Care Circle, audit, and continuity state.</em>
 </p>
 
-## What Judges Should Notice
+## What Makes It Different
 
 | Differentiator | Why it matters |
 | --- | --- |
@@ -75,27 +75,6 @@ This is a hackathon project with a deliberately narrow wedge: one emotionally cl
 | Human responsibility | The flow does not stop at notification. A responder accepts responsibility, confirms the cat was reached, and resolves the incident. |
 | Audit trail | Sensitive transitions are inspectable: Capsule changes, Circle changes, plan state, incidents, and handoffs. |
 | Polished identity | The cat sprite system maps product states to recognizable emotional cues without making safety feel fake. |
-
-## Demo Script
-
-1. Sign in on Android with Supabase Auth.
-2. Create a cat profile.
-3. Fill the Care Capsule: core care, home access, and medical context.
-4. Invite a trusted person with a relationship label, role, and access scope.
-5. The trusted person opens the web portal and signs in with the exact invited email.
-6. The caregiver arms the continuity ritual after readiness checks pass.
-7. The caregiver completes a server-confirmed check-in.
-8. A due-check-in processor can create a missed-check-in incident from backend deadlines.
-9. The responder accepts responsibility in the portal.
-10. The portal reveals only authorized Capsule sections.
-11. The responder confirms the cat was reached and resolves the handoff.
-12. Android shows current incident state and audit history from Supabase.
-
-For final presentation, narrate the debug five-tap missed-check-in trigger as a rehearsal control only. It exists to demonstrate the handoff path quickly; it is not the real timer proof.
-
-<p align="center">
-  <img src="./readme-assets/android-debug-handoff.png" width="220" alt="Android rehearsal-only handoff trigger screen" />
-</p>
 
 ## Architecture
 
@@ -184,7 +163,7 @@ TheThirdBowl/
   SUBMISSION_AUDIT.md                       Submission readiness audit and remaining proof items
 ```
 
-The Supabase schema SQL is managed by the project owner. Keep the final submission package aligned with `SUBMISSION_AUDIT.md` before judging.
+The Supabase schema SQL is managed by the project owner. Keep the deployed project aligned with the schema and environment requirements before running production-like flows.
 
 ## Local Setup
 
@@ -286,7 +265,7 @@ Email delivery and invitation verification grants are included in the committed 
 
 ## Verification Evidence
 
-Current local evidence recorded for the submission:
+Current local verification evidence:
 
 | Area | Evidence |
 | --- | --- |
@@ -297,19 +276,16 @@ Current local evidence recorded for the submission:
 | Android device run | App was run on a physical Android device through Android Studio. |
 | Security posture | No service-role literal was found in client code during the audit. |
 
-See `SUBMISSION_AUDIT.md` for the dated audit, blockers, and proof gaps.
+## Known Boundaries
 
-## Current Boundaries
-
-The README should help the project win by being clear, not by overclaiming. These are the current limits to keep honest in a final submission:
+These are the current limits to keep the product description accurate:
 
 - Provider-delivered emails require deployed Resend secrets, verified sender domain, and live receipt proof.
 - Android push notification delivery is not implemented in this repository.
 - The web portal is a static client-side app, not an HttpOnly server-session app.
 - Capsule field encryption requires `app.capsule_encryption_key` to be configured, plus backfill for any sensitive rows created before the encryption migration.
 - The missed-check-in path is a processor/scheduler model, not a Temporal workflow.
-- A clean hosted or local Supabase replay still needs to be run and recorded as final proof.
-- The Android five-tap handoff trigger is a rehearsal-only control for demos.
+- A clean hosted or local Supabase replay should be run after environment or schema changes.
 
 ## One-Line Pitch
 
