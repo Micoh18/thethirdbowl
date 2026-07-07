@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./website/public/assets/png/neutral.png" width="112" alt="The Third Bowl neutral cat logo" />
+  <img src="./website/public/assets/png/neutral.png" width="144" alt="The Third Bowl neutral cat logo" />
 </p>
 
 <h1 align="center">The Third Bowl</h1>
@@ -21,10 +21,6 @@
   <img alt="Deno" src="https://img.shields.io/badge/Deno-edge%20function-000000?style=for-the-badge&amp;logo=deno&amp;logoColor=white" />
   <img alt="Vercel" src="https://img.shields.io/badge/Vercel-static%20deploy-000000?style=for-the-badge&amp;logo=vercel&amp;logoColor=white" />
   <img alt="Resend" src="https://img.shields.io/badge/Resend-email%20handoff-000000?style=for-the-badge&amp;logo=resend&amp;logoColor=white" />
-</p>
-
-<p align="center">
-  <img src="./website/public/assets/hero-doodle.png" width="720" alt="Hand drawn cats gathered around a bowl" />
 </p>
 
 ## Why This Exists
